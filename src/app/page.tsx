@@ -25,7 +25,9 @@ export default function Home() {
             </ul>
           </nav>
           <div>
-            <Button variant="outline">Login</Button>
+            <Link href="/login">
+              <Button variant="outline">Login</Button>
+            </Link>
             <Link href="/register">
               <Button>Sign Up</Button>
             </Link>
