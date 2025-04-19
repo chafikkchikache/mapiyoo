@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/icons";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -25,7 +26,9 @@ export default function Home() {
           </nav>
           <div>
             <Button variant="outline">Login</Button>
+            <Link href="/register">
             <Button>Sign Up</Button>
+            </Link>
             <Button variant="ghost">Help</Button>
           </div>
         </div>
