@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Icons } from './icons';
 import { useToast } from '@/hooks/use-toast';
-import { registerClient } from '@/lib/utils';
+import { registerClient } from '@/app/actions';
 
 // Define the schemas for individual and company registration
 const individualSchema = z.object({
@@ -89,6 +89,9 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
         description: `Welcome, ${companyValues.companyName}!`,
       });
     }
+
+    // Call the server action
+    await registerClient(values);
   }
 
   return (
