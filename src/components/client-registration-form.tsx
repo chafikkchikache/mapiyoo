@@ -73,6 +73,9 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    // Call the server action
+    await registerClient(values);
+
     // Handle form submission based on account type
     if (accountType === 'individual') {
       const individualValues = values as IndividualFormValues;
@@ -89,9 +92,6 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
         description: `Welcome, ${companyValues.companyName}!`,
       });
     }
-
-    // Call the server action
-    await registerClient(values);
   }
 
   return (

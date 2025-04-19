@@ -27,7 +27,7 @@ export default function Home() {
           <div>
             <Button variant="outline">Login</Button>
             <Link href="/register">
-            <Button>Sign Up</Button>
+              <Button>Sign Up</Button>
             </Link>
             <Button variant="ghost">Help</Button>
           </div>
@@ -43,7 +43,9 @@ export default function Home() {
             <p className="text-muted-foreground mb-6 text-center">
               Expédiez vos colis en un clin d’œil...
             </p>
-            <Button>Livrer un colis</Button>
+            <Link href="/package-delivery">
+              <Button>Livrer un colis</Button>
+            </Link>
           </div>
 
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
@@ -53,7 +55,9 @@ export default function Home() {
             <p className="text-muted-foreground mb-6 text-center">
               Optimisez vos livraisons et touchez plus de clients...
             </p>
-            <Button>Livrer un repas</Button>
+            <Link href="/meal-delivery">
+              <Button>Livrer un repas</Button>
+            </Link>
           </div>
         </section>
       </main>
