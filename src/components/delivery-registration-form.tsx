@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Textarea } from '@/components/ui/textarea';
 
 // Define the schemas for individual and company registration
 const individualSchema = z.object({
@@ -26,8 +25,9 @@ const individualSchema = z.object({
   whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
-  cinRecto: z.string().optional(), // Simulate file upload with a string
-  cinVerso: z.string().optional(), // Simulate file upload with a string
+  cin: z.string().optional(),
+  cinRectoFile: z.string().optional(), // Simulate file upload with a string
+  cinVersoFile: z.string().optional(), // Simulate file upload with a string
   cae: z.string().optional(),
   caeFile: z.string().optional(),
 });
@@ -38,7 +38,8 @@ const companySchema = z.object({
   whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
-  rcOrIf: z.string().optional(), // Simulate file upload with a string
+  rcOrIfNumber: z.string().optional(),
+  rcOrIfFile: z.string().optional(), // Simulate file upload with a string
   ice: z.string().optional(),
 });
 
@@ -59,8 +60,9 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
       whatsappPhone: "",
       email: "",
       password: "",
-      cinRecto: "",
-      cinVerso: "",
+      cin: "",
+      cinRectoFile: "",
+      cinVersoFile: "",
       cae: "",
       caeFile: "",
     } : {
@@ -69,11 +71,18 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
       whatsappPhone: "",
       email: "",
       password: "",
-      rcOrIf: "",
+      rcOrIfNumber: "",
+      rcOrIfFile: "",
       ice: "",
     },
     mode: "onSubmit",
   });
+
+  const [rcOrIfPreview, setRcOrIfPreview] = useState<string | null>(null);
+  const [cinRectoPreview, setCinRectoPreview] = useState<string | null>(null);
+  const [cinVersoPreview, setCinVersoPreview] = useState<string | null>(null);
+  const [caeFilePreview, setCaeFilePreview] = useState<string | null>(null);
+
 
   const { toast } = useToast();
   const router = useRouter();
@@ -102,6 +111,56 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
     // Redirect to dashboard
     router.push('/dashboard');
   }
+
+
+  const handleRcOrIfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue("rcOrIfFile", file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setRcOrIfPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCinRectoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue("cinRectoFile", file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCinRectoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+    const handleCinVersoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue("cinVersoFile", file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCinVersoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCaeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      form.setValue("caeFile", file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCaeFilePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
 
   return (
     <Form {...form}>
@@ -204,33 +263,66 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
         />
         {accountType === 'individual' ? (
           <>
+           <FormField
+              control={form.control}
+              name="cin"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CIN Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="CIN Number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
-              name="cinRecto"
+              name="cinRectoFile"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>CIN (Recto)</FormLabel>
                   <FormControl>
-                    <Input type="file" {...field} />
+                    <Input type="file" onChange={handleCinRectoUpload} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+             {cinRectoPreview && (
+                <img
+                  src={cinRectoPreview}
+                  alt="CIN Recto Preview"
+                  className="max-w-md h-auto rounded-md"
+                />
+              )}
+
+
             <FormField
               control={form.control}
-              name="cinVerso"
+              name="cinVersoFile"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>CIN (Verso)</FormLabel>
                   <FormControl>
-                    <Input type="file" {...field} />
+                    <Input type="file" onChange={handleCinVersoUpload} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
+
+             {cinVersoPreview && (
+                <img
+                  src={cinVersoPreview}
+                  alt="CIN Verso Preview"
+                  className="max-w-md h-auto rounded-md"
+                />
+              )}
+
+               <FormField
               control={form.control}
               name="cae"
               render={({ field }) => (
@@ -243,6 +335,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="caeFile"
@@ -250,28 +343,57 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
                 <FormItem>
                   <FormLabel>CAE File</FormLabel>
                   <FormControl>
-                    <Input type="file" {...field} />
+                    <Input type="file" onChange={handleCaeFileUpload} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+             {caeFilePreview && (
+                <img
+                  src={caeFilePreview}
+                  alt="CAE File Preview"
+                  className="max-w-md h-auto rounded-md"
+                />
+              )}
           </>
         ) : (
           <>
-            <FormField
+           <FormField
               control={form.control}
-              name="rcOrIf"
+              name="rcOrIfNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>RC or IF</FormLabel>
+                  <FormLabel>RC or IF Number</FormLabel>
                   <FormControl>
-                    <Input type="file" {...field} />
+                    <Input placeholder="RC or IF Number" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="rcOrIfFile"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>RC or IF File</FormLabel>
+                  <FormControl>
+                    <Input type="file" onChange={handleRcOrIfUpload} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             {rcOrIfPreview && (
+                <img
+                  src={rcOrIfPreview}
+                  alt="RC or IF Preview"
+                  className="max-w-md h-auto rounded-md"
+                />
+              )}
+
             <FormField
               control={form.control}
               name="ice"
