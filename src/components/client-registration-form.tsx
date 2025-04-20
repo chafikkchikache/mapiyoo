@@ -379,7 +379,7 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
         )}
         <div className="flex justify-center">
           <Button type="submit">
-            {accountType === 'individual' ? 'S\'inscrire en tant qu\'individu' : 'S\'inscrire en tant que société'}
+            S'inscrire
           </Button>
         </div>
       </form>
