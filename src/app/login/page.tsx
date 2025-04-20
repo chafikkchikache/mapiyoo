@@ -16,10 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 // Define the schema for the login form
 const loginSchema = z.object({
-  email: z.string().email({ message: "Adresse email invalide." }),
+  emailOrPhone: z.string().min(1, { message: "Veuillez entrer votre email ou numéro de téléphone." }),
   password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
 });
 
@@ -29,11 +31,14 @@ const LoginPage = () => {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
+      emailOrPhone: "",
       password: "",
     },
     mode: "onSubmit",
   });
+
+  const router = useRouter();
+    const { toast } = useToast();
 
   async function onSubmit(values: LoginFormValues) {
     // Simulate API call
@@ -41,7 +46,13 @@ const LoginPage = () => {
 
     // Handle form submission
     console.log("Login Data:", values);
+     toast({
+        title: "Connexion réussie",
+        description: `Bienvenue!`,
+      });
+
     // Redirect to dashboard or show success message
+    router.push('/dashboard');
   }
 
   return (
@@ -55,12 +66,12 @@ const LoginPage = () => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="email"
+                name="emailOrPhone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Email ou numéro de téléphone</FormLabel>
                     <FormControl>
-                      <Input placeholder="john.doe@example.com" {...field} />
+                      <Input placeholder="john.doe@example.com ou +15551234567" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -99,4 +110,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-
