@@ -441,4 +441,4 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
   );
 };
 
-export default ClientRegistrationForm;
+export default DeliveryRegistrationForm;
