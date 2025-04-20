@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Icons } from './icons';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,6 +28,8 @@ const individualSchema = z.object({
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
   cinRecto: z.string().optional(), // Simulate file upload with a string
   cinVerso: z.string().optional(), // Simulate file upload with a string
+  cae: z.string().optional(),
+  caeFile: z.string().optional(),
 });
 
 const companySchema = z.object({
@@ -44,11 +45,11 @@ const companySchema = z.object({
 type IndividualFormValues = z.infer<typeof individualSchema>;
 type CompanyFormValues = z.infer<typeof companySchema>;
 
-interface ClientRegistrationFormProps {
+interface DeliveryRegistrationFormProps {
   accountType: 'individual' | 'company';
 }
 
-const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ accountType }) => {
+const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ accountType }) => {
   const form = useForm<IndividualFormValues | CompanyFormValues>({
     resolver: zodResolver(accountType === 'individual' ? individualSchema : companySchema),
     defaultValues: accountType === 'individual' ? {
@@ -60,6 +61,8 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
       password: "",
       cinRecto: "",
       cinVerso: "",
+      cae: "",
+      caeFile: "",
     } : {
       companyName: "",
       phone: "",
@@ -227,6 +230,32 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="cae"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CAE Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="CAE Number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="caeFile"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>CAE File</FormLabel>
+                  <FormControl>
+                    <Input type="file" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </>
         ) : (
           <>
@@ -266,4 +295,4 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
   );
 };
 
-export default ClientRegistrationForm;
+export default DeliveryRegistrationForm;
