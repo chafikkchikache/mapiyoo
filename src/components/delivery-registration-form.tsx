@@ -50,6 +50,11 @@ const individualSchemaRequired = individualSchema.extend({
   whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  cin: z.string().min(1, {message: "CIN Number is required"}),
+  cinRectoFile: z.string().min(1, {message: "CIN (Recto) is required"}),
+  cinVersoFile: z.string().min(1, {message: "CIN (Verso) is required"}),
+  cae: z.string().min(1, {message: "CAE Number is required"}),
+  caeFile: z.string().min(1, {message: "CAE File is required"}),
 })
 
 const companySchemaRequired = companySchema.extend({
