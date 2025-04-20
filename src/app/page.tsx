@@ -58,10 +58,10 @@ export default function Home() {
           <div className="flex items-center space-x-2">
             {/* Added flex and spacing for better alignment */}
             <Link href="/login">
-              <Button variant="outline">Se connecter</Button>
+              <Button variant="outline" className="w-32">Se connecter</Button>
             </Link>
             <Link href="/register">
-              <Button>S'inscrire</Button>
+              <Button className="w-32">S'inscrire</Button>
             </Link>
             <Button variant="ghost">Aide</Button>
           </div>
