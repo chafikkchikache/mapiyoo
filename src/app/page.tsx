@@ -43,6 +43,17 @@ export default function Home() {
             </ul>
           </nav>
 
+          <div className="flex items-center space-x-2">
+            {/* Added flex and spacing for better alignment */}
+            <Link href="/login">
+              <Button variant="outline">Login</Button>
+            </Link>
+            <Link href="/register">
+              <Button>Sign Up</Button>
+            </Link>
+            <Button variant="ghost">Help</Button>
+          </div>
+
           {/* Mobile Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild className="md:hidden">
@@ -69,17 +80,6 @@ export default function Home() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <div className="flex items-center space-x-2">
-            {/* Added flex and spacing for better alignment */}
-            <Link href="/login">
-              <Button variant="outline">Login</Button>
-            </Link>
-            <Link href="/register">
-              <Button>Sign Up</Button>
-            </Link>
-            <Button variant="ghost">Help</Button>
-          </div>
         </div>
       </header>
 
