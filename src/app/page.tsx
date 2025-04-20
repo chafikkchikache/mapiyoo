@@ -1,9 +1,8 @@
 'use client';
 
 import {Button} from '@/components/ui/button';
-import {Icons} from '@/components/icons';
 import Link from 'next/link';
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,9 +10,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {MoreVertical} from 'lucide-react';
+import {useRouter} from 'next/navigation';
 
 export default function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const router = useRouter();
+
+  // Mock authentication check (replace with actual authentication logic)
+  const isAuthenticated = false; // Example: check if user is logged in
+
+  const handleNavigation = (path: string) => {
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    } else {
+      router.push('/login');
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -98,9 +110,7 @@ export default function Home() {
             <p className="text-muted-foreground mb-6 text-center">
             Expédiez vos colis en un clin d’œil...
             </p>
-            <Link href="/register">
-              <Button>Commencer la livraison</Button>
-            </Link>
+            <Button onClick={() => handleNavigation('/register')}>Commencer la livraison</Button>
           </div>
 
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
@@ -110,9 +120,7 @@ export default function Home() {
             <p className="text-muted-foreground mb-6 text-center">
              Optimisez vos livraisons et touchez plus de clients...
             </p>
-            <Link href="/meal-delivery">
-              <Button>Livrer un repas</Button>
-            </Link>
+            <Button onClick={() => handleNavigation('/meal-delivery')}>Livrer un repas</Button>
           </div>
         </section>
 
@@ -124,7 +132,7 @@ export default function Home() {
           <p className="text-muted-foreground mb-6 text-center">
             Réservez une course maintenant ou planifiez-la plus tard, directement depuis votre navigateur.
           </p>
-          <Button>Trouver un chauffeur</Button>
+          <Button onClick={() => handleNavigation('/dashboard')}>Trouver un chauffeur</Button>
         </section>
       </main>
 
@@ -134,3 +142,4 @@ export default function Home() {
     </div>
   );
 }
+

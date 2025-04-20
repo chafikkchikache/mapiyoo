@@ -87,6 +87,11 @@ const LoginPage = () => {
               Mot de passe oublié ?
             </Link>
           </div>
+          <div className="text-sm mt-2">
+            <Link href="/register" className="text-primary">
+              Créer un compte
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
