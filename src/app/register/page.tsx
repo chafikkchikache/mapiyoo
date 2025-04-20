@@ -49,7 +49,7 @@ const RegisterPage = () => {
               } mb-2`} // Added margin bottom for better spacing in mobile view
               onClick={() => setUserType('client')}
             >
-              S'inscrire en tant que client
+              Je suis client
             </button>
             <button
               className={`px-4 py-2 rounded-md ${
@@ -59,7 +59,7 @@ const RegisterPage = () => {
               }`}
               onClick={() => setUserType('delivery')}
             >
-              S'inscrire en tant que livreur
+              Je suis livreur
             </button>
           </div>
 
