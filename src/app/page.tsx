@@ -10,7 +10,7 @@ export default function Home() {
           <a href="/" className="text-2xl font-semibold text-foreground">
             MapYOO
           </a>
-          <nav>
+          <nav className="hidden md:block"> {/* Hide on small screens, show on medium and up */}
             <ul className="flex space-x-4">
               <li>
                 <a href="#" className="hover:text-accent-foreground">
@@ -24,7 +24,7 @@ export default function Home() {
               </li>
             </ul>
           </nav>
-          <div>
+          <div className="flex items-center space-x-2"> {/* Added flex and spacing for better alignment */}
             <Link href="/login">
               <Button variant="outline">Login</Button>
             </Link>
@@ -37,7 +37,7 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto py-12 flex-grow">
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-8"> {/* Grid changes to 2 columns on medium screens and up */}
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               Deliver a Package

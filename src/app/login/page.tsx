@@ -45,8 +45,8 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-secondary">
-      <Card className="w-full max-w-md">
+    <div className="flex justify-center items-center min-h-screen bg-secondary p-4"> {/* Added padding for small screens */}
+      <Card className="w-full max-w-md"> {/* Card takes full width on small screens, max width on larger screens */}
         <CardHeader>
           <CardTitle>Login to Your Account</CardTitle>
         </CardHeader>
@@ -94,4 +94,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-

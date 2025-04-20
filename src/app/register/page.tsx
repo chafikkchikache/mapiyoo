@@ -34,19 +34,19 @@ const RegisterPage = () => {
 
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-secondary">
-      <Card className="w-full max-w-md">
+    <div className="flex justify-center items-center min-h-screen bg-secondary p-4"> {/* Added padding for responsiveness */}
+      <Card className="w-full max-w-md"> {/* Card takes full width on small screens, max width on larger screens */}
         <CardHeader>
           <CardTitle>Create an Account</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex space-x-4 mb-4">
+          <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
             <button
               className={`px-4 py-2 rounded-md ${
                 userType === 'client'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-foreground hover:bg-accent'
-              }`}
+              } mb-2`} // Added margin bottom for better spacing in mobile view
               onClick={() => setUserType('client')}
             >
               Register as Client
@@ -65,13 +65,13 @@ const RegisterPage = () => {
 
             {userType === 'client' ? (
               <>
-                <div className="flex space-x-4 mb-4">
+                <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
                   <button
                     className={`px-4 py-2 rounded-md ${
                       accountType === 'individual'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
-                    }`}
+                    } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('individual')}
                   >
                     Individual
@@ -81,7 +81,7 @@ const RegisterPage = () => {
                       accountType === 'company'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
-                    }`}
+                    } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('company')}
                   >
                     Company
@@ -91,13 +91,13 @@ const RegisterPage = () => {
               </>
             ) : (
               <>
-                <div className="flex space-x-4 mb-4">
+                <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
                   <button
                     className={`px-4 py-2 rounded-md ${
                       accountType === 'individual'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
-                    }`}
+                    } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('individual')}
                   >
                     Individual
@@ -107,7 +107,7 @@ const RegisterPage = () => {
                       accountType === 'company'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
-                    }`}
+                    } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('company')}
                   >
                     Company

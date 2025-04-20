@@ -319,7 +319,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
                 <img
                   src={cinRectoPreview}
                   alt="CIN Recto Preview"
-                  className="max-w-md h-auto rounded-md"
+                  className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
 
@@ -342,7 +342,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
                 <img
                   src={cinVersoPreview}
                   alt="CIN Verso Preview"
-                  className="max-w-md h-auto rounded-md"
+                  className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
 
@@ -378,7 +378,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
                 <img
                   src={caeFilePreview}
                   alt="CAE File Preview"
-                  className="max-w-md h-auto rounded-md"
+                  className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
           </>
@@ -414,7 +414,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
                 <img
                   src={rcOrIfPreview}
                   alt="RC or IF Preview"
-                  className="max-w-md h-auto rounded-md"
+                  className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
 
@@ -441,4 +441,4 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
   );
 };
 
-export default DeliveryRegistrationForm;
+export default ClientRegistrationForm;
