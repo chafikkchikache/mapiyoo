@@ -43,8 +43,26 @@ const companySchema = z.object({
   ice: z.string().optional(),
 });
 
-type IndividualFormValues = z.infer<typeof individualSchema>;
-type CompanyFormValues = z.infer<typeof companySchema>;
+const individualSchemaRequired = individualSchema.extend({
+  firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
+  lastName: z.string().min(2, { message: "Last name must be at least 2 characters." }),
+  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid phone number." }),
+  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
+  email: z.string().email({ message: "Invalid email address." }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+})
+
+const companySchemaRequired = companySchema.extend({
+  companyName: z.string().min(2, { message: "Company name must be at least 2 characters." }),
+  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid phone number." }),
+  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
+  email: z.string().email({ message: "Invalid email address." }),
+  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  rcOrIfNumber: z.string(),
+})
+
+type IndividualFormValues = z.infer<typeof individualSchemaRequired>;
+type CompanyFormValues = z.infer<typeof companySchemaRequired>;
 
 interface ClientRegistrationFormProps {
   accountType: 'individual' | 'company';
@@ -52,7 +70,7 @@ interface ClientRegistrationFormProps {
 
 const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ accountType }) => {
   const form = useForm<IndividualFormValues | CompanyFormValues>({
-    resolver: zodResolver(accountType === 'individual' ? individualSchema : companySchema),
+    resolver: zodResolver(accountType === 'individual' ? individualSchemaRequired : companySchemaRequired),
     defaultValues: accountType === 'individual' ? {
       firstName: "",
       lastName: "",
