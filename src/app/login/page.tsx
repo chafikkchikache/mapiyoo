@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
 
 // Define the schema for the login form
 const loginSchema = z.object({
@@ -28,6 +29,8 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginPage = () => {
+  const [isLoading, setIsLoading] = useState(false); // Add loading state
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -38,21 +41,36 @@ const LoginPage = () => {
   });
 
   const router = useRouter();
-    const { toast } = useToast();
+  const { toast } = useToast();
 
   async function onSubmit(values: LoginFormValues) {
+    setIsLoading(true); // Set loading to true
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate a longer API call
+
+    // Simulated check for account existence (replace with actual API call)
+    const accountExists = true; // Replace with actual account existence check
+
+    if (!accountExists) {
+      toast({
+        title: "Erreur de connexion",
+        description: "Aucun compte trouvé avec ces informations.",
+        variant: "destructive",
+      });
+      setIsLoading(false); // Set loading to false
+      return;
+    }
 
     // Handle form submission
     console.log("Login Data:", values);
-     toast({
-        title: "Connexion réussie",
-        description: `Bienvenue!`,
-      });
+    toast({
+      title: "Connexion réussie",
+      description: `Bienvenue!`,
+    });
 
     // Redirect to dashboard or show success message
     router.push('/dashboard');
+    setIsLoading(false); // Set loading to false
   }
 
   return (
@@ -90,7 +108,9 @@ const LoginPage = () => {
                   </FormItem>
                 )}
               />
-              <Button type="submit">Se connecter</Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Connexion..." : "Se connecter"}
+              </Button>
             </form>
           </Form>
           <div className="text-sm mt-2">
@@ -99,7 +119,7 @@ const LoginPage = () => {
             </Link>
           </div>
           <div className="text-sm mt-2">
-           Nouveau sur MapYOO ? <Link href="/register" className="text-primary">
+            Nouveau sur MapYOO ? <Link href="/register" className="text-primary">
               Créer un compte
             </Link>
           </div>
