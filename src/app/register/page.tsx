@@ -66,9 +66,9 @@ const RegisterPage = () => {
 
             {userType === 'client' ? (
               <>
-                <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
+                <div className="flex justify-center space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
                   <button
-                    className={`px-4 py-2 rounded-md ${
+                    className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
                       accountType === 'individual'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
@@ -78,7 +78,7 @@ const RegisterPage = () => {
                     Individuel
                   </button>
                   <button
-                    className={`px-4 py-2 rounded-md ${
+                    className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
                       accountType === 'company'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
@@ -92,9 +92,9 @@ const RegisterPage = () => {
               </>
             ) : (
               <>
-                <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
+                <div className="flex justify-center space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
                   <button
-                    className={`px-4 py-2 rounded-md ${
+                    className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
                       accountType === 'individual'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
@@ -104,7 +104,7 @@ const RegisterPage = () => {
                     Individuel
                   </button>
                   <button
-                    className={`px-4 py-2 rounded-md ${
+                    className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
                       accountType === 'company'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-secondary text-foreground hover:bg-accent'
