@@ -2,9 +2,10 @@
 
 import React, {useState} from 'react';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import Link from 'next/link';
 
 const RegisterPage = () => {
-  const [userType, setUserType] = useState<'client' | 'delivery'>('client');
+  const [userType, setUserType] = useState<'client' | 'delivery' | 'chauffeur'>('client');
   const [accountType, setAccountType] = useState<'individual' | 'company'>(
     'individual'
   );
@@ -20,6 +21,11 @@ const RegisterPage = () => {
     []
   );
 
+  const ChauffeurRegistrationForm = React.useMemo(
+    () => React.lazy(() => import('@/components/chauffeur-registration-form')),
+    []
+  );
+
   const SuspenseClientRegistrationForm = (props: any) => (
     <React.Suspense fallback={<p>Chargement du formulaire...</p>}>
       <ClientRegistrationForm {...props} />
@@ -32,10 +38,16 @@ const RegisterPage = () => {
     </React.Suspense>
   );
 
+  const SuspenseChauffeurRegistrationForm = (props: any) => (
+    <React.Suspense fallback={<p>Chargement du formulaire...</p>}>
+      <ChauffeurRegistrationForm {...props} />
+    </React.Suspense>
+  );
+
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-secondary p-4"> {/* Added padding for responsiveness */}
-      <Card className="w-full max-w-md"> {/* Card takes full width on small screens, max width on larger screens */}
+    <div className="flex justify-center items-center min-h-screen bg-secondary p-4">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Créer un compte</CardTitle>
         </CardHeader>
@@ -51,6 +63,16 @@ const RegisterPage = () => {
               onClick={() => setUserType('client')}
             >
               Je suis client
+            </button>
+             <button
+              className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
+                userType === 'chauffeur'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-foreground hover:bg-accent'
+              }`}
+              onClick={() => setUserType('chauffeur')}
+            >
+              Je suis chauffeur
             </button>
             <button
               className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
@@ -90,7 +112,33 @@ const RegisterPage = () => {
                 </div>
                 <SuspenseClientRegistrationForm accountType={accountType} />
               </>
-            ) : (
+            ) :  userType === 'chauffeur' ? (
+                  <>
+                <div className="flex justify-center space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
+                  <button
+                    className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
+                      accountType === 'individual'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-foreground hover:bg-accent'
+                    } mb-2`} // Added margin bottom for better spacing in mobile view
+                    onClick={() => setAccountType('individual')}
+                  >
+                    Individuel
+                  </button>
+                  <button
+                    className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
+                      accountType === 'company'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-foreground hover:bg-accent'
+                    } mb-2`} // Added margin bottom for better spacing in mobile view
+                    onClick={() => setAccountType('company')}
+                  >
+                    Société
+                  </button>
+                </div>
+                <SuspenseChauffeurRegistrationForm accountType={accountType} />
+              </>
+                ) : (
               <>
                 <div className="flex justify-center space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
                   <button
