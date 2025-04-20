@@ -62,7 +62,7 @@ const RegisterPage = () => {
               }`}
               onClick={() => setUserType('client')}
             >
-              Je suis client
+              Client
             </button>
              <button
               className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
@@ -72,7 +72,7 @@ const RegisterPage = () => {
               }`}
               onClick={() => setUserType('chauffeur')}
             >
-              Je suis chauffeur
+              chauffeur
             </button>
             <button
               className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
@@ -82,7 +82,7 @@ const RegisterPage = () => {
               }`}
               onClick={() => setUserType('delivery')}
             >
-              Je suis livreur
+              livreur
             </button>
           </div>
 
