@@ -22,8 +22,8 @@ export default function Home() {
           <a href="/" className="text-2xl font-semibold text-foreground">
             MapYOO
           </a>
-          <nav className="hidden md:block">
-            {/* Hide on small screens, show on medium and up */}
+          {/* Hide on small screens, show on medium and up */}
+          <nav className="hidden">
             <ul className="flex space-x-4">
               <li>
                 <a href="#" className="hover:text-accent-foreground">
@@ -56,13 +56,13 @@ export default function Home() {
 
           {/* Mobile Menu */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild className="sm:hidden">
+            <DropdownMenuTrigger asChild className="">
               <Button variant="ghost" className="h-8 w-8 p-0">
                 <span className="sr-only">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="sm:hidden">
+            <DropdownMenuContent align="end" className="">
               <DropdownMenuItem>
                 <Link href="#" className="w-full">
                   Repas
