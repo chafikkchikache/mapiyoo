@@ -105,7 +105,7 @@ export default function Home() {
           {/* Grid changes to 2 columns on medium screens and up */}
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
-              Colie est package
+              colie est package
             </h2>
             <p className="text-muted-foreground mb-6 text-center">
             Expédiez vos colis en un clin d’œil...
