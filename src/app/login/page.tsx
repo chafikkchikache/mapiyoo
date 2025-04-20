@@ -30,6 +30,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false); // Add loading state
+  const [loginError, setLoginError] = useState<string | null>(null); // State for login errors
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -45,19 +46,31 @@ const LoginPage = () => {
 
   async function onSubmit(values: LoginFormValues) {
     setIsLoading(true); // Set loading to true
+    setLoginError(null); // Clear any previous errors
+
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate a longer API call
 
-    // Simulated check for account existence (replace with actual API call)
-    const accountExists = true; // Replace with actual account existence check
+    // Simulated check for account existence and password (replace with actual API call)
+    let accountExists = true;
+    let passwordCorrect = true;
+
+     if (values.emailOrPhone === 'notfound'){
+      accountExists = false;
+    }
+    if (values.password === 'wrong'){
+      passwordCorrect = false;
+    }
 
     if (!accountExists) {
-      toast({
-        title: "Erreur de connexion",
-        description: "Aucun compte trouvé avec ces informations.",
-        variant: "destructive",
-      });
+      setLoginError("Aucun compte trouvé avec ces informations. Veuillez créer un compte.");
       setIsLoading(false); // Set loading to false
+      return;
+    }
+
+    if (!passwordCorrect) {
+      setLoginError("Mot de passe incorrect.  <Link href='/forgot-password' className='text-primary'>Mot de passe oublié ?</Link>");
+      setIsLoading(false);
       return;
     }
 
@@ -108,6 +121,9 @@ const LoginPage = () => {
                   </FormItem>
                 )}
               />
+              {loginError && (
+                <div className="text-red-500 text-sm mt-2" dangerouslySetInnerHTML={{ __html: loginError }} />
+              )}
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? "Connexion..." : "Se connecter"}
               </Button>
