@@ -20,6 +20,19 @@ const RegisterPage = () => {
     []
   );
 
+  const SuspenseClientRegistrationForm = (props: any) => (
+    <React.Suspense fallback={<p>Loading form...</p>}>
+      <ClientRegistrationForm {...props} />
+    </React.Suspense>
+  );
+
+  const SuspenseDeliveryRegistrationForm = (props: any) => (
+    <React.Suspense fallback={<p>Loading form...</p>}>
+      <DeliveryRegistrationForm {...props} />
+    </React.Suspense>
+  );
+
+
   return (
     <div className="flex justify-center items-center min-h-screen bg-secondary">
       <Card className="w-full max-w-md">
@@ -50,7 +63,6 @@ const RegisterPage = () => {
             </button>
           </div>
 
-          <React.Suspense fallback={<p>Loading form...</p>}>
             {userType === 'client' ? (
               <>
                 <div className="flex space-x-4 mb-4">
@@ -75,7 +87,7 @@ const RegisterPage = () => {
                     Company
                   </button>
                 </div>
-                <ClientRegistrationForm accountType={accountType} />
+                <SuspenseClientRegistrationForm accountType={accountType} />
               </>
             ) : (
               <>
@@ -101,10 +113,10 @@ const RegisterPage = () => {
                     Company
                   </button>
                 </div>
-                <DeliveryRegistrationForm accountType={accountType} />
+                <SuspenseDeliveryRegistrationForm accountType={accountType} />
               </>
             )}
-          </React.Suspense>
+
         </CardContent>
       </Card>
     </div>
