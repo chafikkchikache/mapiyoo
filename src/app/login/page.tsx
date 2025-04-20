@@ -88,7 +88,7 @@ const LoginPage = () => {
             </Link>
           </div>
           <div className="text-sm mt-2">
-            <Link href="/register" className="text-primary">
+           Nouveau sur MapYOO ? <Link href="/register" className="text-primary">
               Créer un compte
             </Link>
           </div>
