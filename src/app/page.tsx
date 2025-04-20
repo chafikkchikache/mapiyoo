@@ -23,7 +23,7 @@ export default function Home() {
             MapYOO
           </a>
           {/* Hide on small screens, show on medium and up */}
-          <nav className="hidden">
+          <nav className="hidden md:flex">
             <ul className="flex space-x-4">
               <li>
                 <a href="#" className="hover:text-accent-foreground">
@@ -57,7 +57,7 @@ export default function Home() {
           {/* Mobile Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild className="">
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="ghost" className="h-8 w-8 p-0 md:hidden">
                 <span className="sr-only">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -115,6 +115,17 @@ export default function Home() {
             </Link>
           </div>
         </section>
+
+        {/* New section for finding a ride */}
+        <section className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card mt-8">
+          <h2 className="text-2xl font-semibold mb-4 text-foreground">
+            Looking for a Ride?
+          </h2>
+          <p className="text-muted-foreground mb-6 text-center">
+            Réservez une course maintenant ou planifiez-la plus tard, directement depuis votre navigateur.
+          </p>
+          <Button>Trouver un trajet</Button>
+        </section>
       </main>
 
       <footer className="bg-secondary p-4 text-center text-muted-foreground">
@@ -123,3 +134,4 @@ export default function Home() {
     </div>
   );
 }
+
