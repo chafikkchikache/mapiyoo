@@ -38,7 +38,7 @@ const companySchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
   rcOrIf: z.string().optional(), // Simulate file upload with a string
-  ice: z.string().min(15, { message: "ICE must be 15 characters or more." }).optional(),
+  ice: z.string().optional(),
 });
 
 type IndividualFormValues = z.infer<typeof individualSchema>;
@@ -268,4 +268,3 @@ const ClientRegistrationForm: React.FC<ClientRegistrationFormProps> = ({ account
 
 export default ClientRegistrationForm;
 
-    
