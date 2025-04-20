@@ -7,7 +7,7 @@ export default function MealDeliveryPage() {
       <main className="container mx-auto py-12 flex-grow">
         <section className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
           <h2 className="text-2xl font-semibold mb-4 text-foreground">
-            Deliver a Meal
+            Snack et Restauration
           </h2>
           <p className="text-muted-foreground mb-6 text-center">
             Page en construction...
@@ -20,3 +20,4 @@ export default function MealDeliveryPage() {
     </div>
   );
 }
+

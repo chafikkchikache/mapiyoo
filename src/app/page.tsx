@@ -27,7 +27,7 @@ export default function Home() {
             <ul className="flex space-x-4">
               <li>
                 <a href="#" className="hover:text-accent-foreground">
-                  Repas
+                  Snack et Restauration
                 </a>
               </li>
               <li>
@@ -65,7 +65,7 @@ export default function Home() {
             <DropdownMenuContent align="end" className="">
               <DropdownMenuItem>
                 <Link href="#" className="w-full">
-                  Repas
+                  Snack et Restauration
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
@@ -78,7 +78,7 @@ export default function Home() {
                   Course
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+               <DropdownMenuItem>
                 <Link href="#" className="w-full">
                   Aide
                 </Link>
@@ -96,7 +96,7 @@ export default function Home() {
               Envoyer un Colis
             </h2>
             <p className="text-muted-foreground mb-6 text-center">
-              Expédiez vos colis en un clin d’œil...
+            Expédiez vos colis en un clin d’œil...
             </p>
             <Link href="/package-delivery">
               <Button>Commencer la livraison</Button>
@@ -105,10 +105,10 @@ export default function Home() {
 
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
-              Livraison de repas
+              Snack et Restauration
             </h2>
             <p className="text-muted-foreground mb-6 text-center">
-              Optimisez vos livraisons et touchez plus de clients...
+             Optimisez vos livraisons et touchez plus de clients...
             </p>
             <Link href="/meal-delivery">
               <Button>Livrer un repas</Button>
@@ -134,3 +134,4 @@ export default function Home() {
     </div>
   );
 }
+
