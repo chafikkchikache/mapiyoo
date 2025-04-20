@@ -21,13 +21,13 @@ const RegisterPage = () => {
   );
 
   const SuspenseClientRegistrationForm = (props: any) => (
-    <React.Suspense fallback={<p>Loading form...</p>}>
+    <React.Suspense fallback={<p>Chargement du formulaire...</p>}>
       <ClientRegistrationForm {...props} />
     </React.Suspense>
   );
 
   const SuspenseDeliveryRegistrationForm = (props: any) => (
-    <React.Suspense fallback={<p>Loading form...</p>}>
+    <React.Suspense fallback={<p>Chargement du formulaire...</p>}>
       <DeliveryRegistrationForm {...props} />
     </React.Suspense>
   );
@@ -37,7 +37,7 @@ const RegisterPage = () => {
     <div className="flex justify-center items-center min-h-screen bg-secondary p-4"> {/* Added padding for responsiveness */}
       <Card className="w-full max-w-md"> {/* Card takes full width on small screens, max width on larger screens */}
         <CardHeader>
-          <CardTitle>Create an Account</CardTitle>
+          <CardTitle>Créer un compte</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
@@ -49,7 +49,7 @@ const RegisterPage = () => {
               } mb-2`} // Added margin bottom for better spacing in mobile view
               onClick={() => setUserType('client')}
             >
-              Register as Client
+              S'inscrire en tant que client
             </button>
             <button
               className={`px-4 py-2 rounded-md ${
@@ -59,7 +59,7 @@ const RegisterPage = () => {
               }`}
               onClick={() => setUserType('delivery')}
             >
-              Register as Delivery Personnel
+              S'inscrire en tant que livreur
             </button>
           </div>
 
@@ -74,7 +74,7 @@ const RegisterPage = () => {
                     } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('individual')}
                   >
-                    Individual
+                    Individuel
                   </button>
                   <button
                     className={`px-4 py-2 rounded-md ${
@@ -84,7 +84,7 @@ const RegisterPage = () => {
                     } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('company')}
                   >
-                    Company
+                    Société
                   </button>
                 </div>
                 <SuspenseClientRegistrationForm accountType={accountType} />
@@ -100,7 +100,7 @@ const RegisterPage = () => {
                     } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('individual')}
                   >
-                    Individual
+                    Individuel
                   </button>
                   <button
                     className={`px-4 py-2 rounded-md ${
@@ -110,7 +110,7 @@ const RegisterPage = () => {
                     } mb-2`} // Added margin bottom for better spacing in mobile view
                     onClick={() => setAccountType('company')}
                   >
-                    Company
+                    Société
                   </button>
                 </div>
                 <SuspenseDeliveryRegistrationForm accountType={accountType} />

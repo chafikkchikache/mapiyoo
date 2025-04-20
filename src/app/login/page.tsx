@@ -19,8 +19,8 @@ import Link from 'next/link';
 
 // Define the schema for the login form
 const loginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  email: z.string().email({ message: "Adresse email invalide." }),
+  password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -48,7 +48,7 @@ const LoginPage = () => {
     <div className="flex justify-center items-center min-h-screen bg-secondary p-4"> {/* Added padding for small screens */}
       <Card className="w-full max-w-md"> {/* Card takes full width on small screens, max width on larger screens */}
         <CardHeader>
-          <CardTitle>Login to Your Account</CardTitle>
+          <CardTitle>Se connecter à votre compte</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -71,7 +71,7 @@ const LoginPage = () => {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Mot de passe</FormLabel>
                     <FormControl>
                       <Input type="password" {...field} />
                     </FormControl>
@@ -79,12 +79,12 @@ const LoginPage = () => {
                   </FormItem>
                 )}
               />
-              <Button type="submit">Login</Button>
+              <Button type="submit">Se connecter</Button>
             </form>
           </Form>
           <div className="text-sm mt-2">
             <Link href="/forgot-password" className="text-primary">
-              Forgot Password?
+              Mot de passe oublié ?
             </Link>
           </div>
         </CardContent>
@@ -94,3 +94,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+"

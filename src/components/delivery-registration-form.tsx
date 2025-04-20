@@ -19,12 +19,12 @@ import { useRouter } from 'next/navigation';
 
 // Define the schemas for individual and company registration
 const individualSchema = z.object({
-  firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
-  lastName: z.string().min(2, { message: "Last name must be at least 2 characters." }),
-  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid phone number." }),
-  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  firstName: z.string().min(2, { message: "Le prénom doit contenir au moins 2 caractères." }),
+  lastName: z.string().min(2, { message: "Le nom doit contenir au moins 2 caractères." }),
+  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone invalide." }),
+  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone WhatsApp invalide." }),
+  email: z.string().email({ message: "Adresse email invalide." }),
+  password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
   cin: z.string().optional(),
   cinRectoFile: z.string().optional(), // Simulate file upload with a string
   cinVersoFile: z.string().optional(), // Simulate file upload with a string
@@ -33,38 +33,38 @@ const individualSchema = z.object({
 });
 
 const companySchema = z.object({
-  companyName: z.string().min(2, { message: "Company name must be at least 2 characters." }),
-  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid phone number." }),
-  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  companyName: z.string().min(2, { message: "Le nom de l'entreprise doit contenir au moins 2 caractères." }),
+  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone invalide." }),
+  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone WhatsApp invalide." }),
+  email: z.string().email({ message: "Adresse email invalide." }),
+  password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
   rcOrIfNumber: z.string().optional(),
   rcOrIfFile: z.string().optional(), // Simulate file upload with a string
   ice: z.string().optional(),
 });
 
 const individualSchemaRequired = individualSchema.extend({
-  firstName: z.string().min(2, { message: "First name must be at least 2 characters." }),
-  lastName: z.string().min(2, { message: "Last name must be at least 2 characters." }),
-  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid phone number." }),
-  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
-  cin: z.string().min(1, {message: "CIN Number is required"}),
-  cinRectoFile: z.string().min(1, {message: "CIN (Recto) is required"}),
-  cinVersoFile: z.string().min(1, {message: "CIN (Verso) is required"}),
-  cae: z.string().min(1, {message: "CAE Number is required"}),
-  caeFile: z.string().min(1, {message: "CAE File is required"}),
+  firstName: z.string().min(2, { message: "Le prénom doit contenir au moins 2 caractères." }),
+  lastName: z.string().min(2, { message: "Le nom doit contenir au moins 2 caractères." }),
+  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone invalide." }),
+  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone WhatsApp invalide." }),
+  email: z.string().email({ message: "Adresse email invalide." }),
+  password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
+  cin: z.string().min(1, {message: "Le numéro CIN est requis"}),
+  cinRectoFile: z.string().min(1, {message: "Le CIN (Recto) est requis"}),
+  cinVersoFile: z.string().min(1, {message: "Le CIN (Verso) est requis"}),
+  cae: z.string().min(1, {message: "Le numéro CAE est requis"}),
+  caeFile: z.string().min(1, {message: "Le fichier CAE est requis"}),
 })
 
 const companySchemaRequired = companySchema.extend({
-  companyName: z.string().min(2, { message: "Company name must be at least 2 characters." }),
-  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid phone number." }),
-  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters." }),
-  rcOrIfNumber: z.string().min(1, {message: "RC or IF Number is required"}),
-  rcOrIfFile: z.string().min(1, {message: "RC or IF File is required"}),
+  companyName: z.string().min(2, { message: "Le nom de l'entreprise doit contenir au moins 2 caractères." }),
+  phone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone invalide." }),
+  whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Numéro de téléphone WhatsApp invalide." }),
+  email: z.string().email({ message: "Adresse email invalide." }),
+  password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
+  rcOrIfNumber: z.string().min(1, {message: "Le numéro RC ou IF est requis"}),
+  rcOrIfFile: z.string().min(1, {message: "Le fichier RC ou IF est requis"}),
 })
 
 type IndividualFormValues = z.infer<typeof individualSchemaRequired>;
@@ -120,15 +120,15 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
       const individualValues = values as IndividualFormValues;
       console.log("Individual Registration Data:", individualValues);
       toast({
-        title: "Registration Successful",
-        description: `Welcome, ${individualValues.firstName} ${individualValues.lastName}!`,
+        title: "Inscription réussie",
+        description: `Bienvenue, ${individualValues.firstName} ${individualValues.lastName}!`,
       });
     } else {
       const companyValues = values as CompanyFormValues;
       console.log("Company Registration Data:", companyValues);
       toast({
-        title: "Registration Successful",
-        description: `Welcome, ${companyValues.companyName}!`,
+        title: "Inscription réussie",
+        description: `Bienvenue, ${companyValues.companyName}!`,
       });
     }
 
@@ -196,7 +196,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="firstName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>First Name</FormLabel>
+                  <FormLabel>Prénom</FormLabel>
                   <FormControl>
                     <Input placeholder="John" {...field} />
                   </FormControl>
@@ -209,7 +209,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="lastName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Last Name</FormLabel>
+                  <FormLabel>Nom</FormLabel>
                   <FormControl>
                     <Input placeholder="Doe" {...field} />
                   </FormControl>
@@ -224,7 +224,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
             name="companyName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Company Name</FormLabel>
+                <FormLabel>Nom de l'entreprise</FormLabel>
                 <FormControl>
                   <Input placeholder="Acme Corp" {...field} />
                 </FormControl>
@@ -238,7 +238,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone Number</FormLabel>
+              <FormLabel>Numéro de téléphone</FormLabel>
               <FormControl>
                 <Input placeholder="+15551234567" {...field} />
               </FormControl>
@@ -251,7 +251,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
           name="whatsappPhone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>WhatsApp Phone Number</FormLabel>
+              <FormLabel>Numéro de téléphone WhatsApp</FormLabel>
               <FormControl>
                 <Input placeholder="+15551234567" {...field} />
               </FormControl>
@@ -277,7 +277,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>Mot de passe</FormLabel>
               <FormControl>
                 <Input type="password" {...field} />
               </FormControl>
@@ -292,9 +292,9 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="cin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>CIN Number</FormLabel>
+                  <FormLabel>Numéro CIN</FormLabel>
                   <FormControl>
-                    <Input placeholder="CIN Number" {...field} />
+                    <Input placeholder="Numéro CIN" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -318,7 +318,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
              {cinRectoPreview && (
                 <img
                   src={cinRectoPreview}
-                  alt="CIN Recto Preview"
+                  alt="Aperçu CIN Recto"
                   className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
@@ -341,7 +341,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
              {cinVersoPreview && (
                 <img
                   src={cinVersoPreview}
-                  alt="CIN Verso Preview"
+                  alt="Aperçu CIN Verso"
                   className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
@@ -351,9 +351,9 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="cae"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>CAE Number</FormLabel>
+                  <FormLabel>Numéro CAE</FormLabel>
                   <FormControl>
-                    <Input placeholder="CAE Number" {...field} />
+                    <Input placeholder="Numéro CAE" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -365,7 +365,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="caeFile"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>CAE File</FormLabel>
+                  <FormLabel>Fichier CAE</FormLabel>
                   <FormControl>
                     <Input type="file" onChange={handleCaeFileUpload} />
                   </FormControl>
@@ -377,7 +377,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
              {caeFilePreview && (
                 <img
                   src={caeFilePreview}
-                  alt="CAE File Preview"
+                  alt="Aperçu du fichier CAE"
                   className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
@@ -389,9 +389,9 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="rcOrIfNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>RC or IF Number</FormLabel>
+                  <FormLabel>Numéro RC ou IF</FormLabel>
                   <FormControl>
-                    <Input placeholder="RC or IF Number" {...field} />
+                    <Input placeholder="Numéro RC ou IF" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -402,7 +402,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="rcOrIfFile"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>RC or IF File</FormLabel>
+                  <FormLabel>Fichier RC ou IF</FormLabel>
                   <FormControl>
                     <Input type="file" onChange={handleRcOrIfUpload} />
                   </FormControl>
@@ -413,7 +413,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
              {rcOrIfPreview && (
                 <img
                   src={rcOrIfPreview}
-                  alt="RC or IF Preview"
+                  alt="Aperçu RC ou IF"
                   className="max-w-full h-auto rounded-md" // Added max-w-full for responsiveness
                 />
               )}
@@ -423,7 +423,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
               name="ice"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>ICE (Optional)</FormLabel>
+                  <FormLabel>ICE (Optionnel)</FormLabel>
                   <FormControl>
                     <Input placeholder="ICE" {...field} />
                   </FormControl>
@@ -434,7 +434,7 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
           </>
         )}
         <Button type="submit">
-          {accountType === 'individual' ? 'Register as Individual' : 'Register as Company'}
+          {accountType === 'individual' ? 'S\'inscrire en tant qu\'individu' : 'S\'inscrire en tant que société'}
         </Button>
       </form>
     </Form>
