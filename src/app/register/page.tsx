@@ -40,19 +40,20 @@ const RegisterPage = () => {
           <CardTitle>Créer un compte</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap space-x-4 mb-4"> {/* Added flex-wrap for responsiveness */}
+          {/* Central container for buttons to ensure equal dimensions and alignment */}
+          <div className="flex justify-center space-x-4 mb-4">
             <button
-              className={`px-4 py-2 rounded-md ${
+              className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
                 userType === 'client'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-foreground hover:bg-accent'
-              } mb-2`} // Added margin bottom for better spacing in mobile view
+              }`}
               onClick={() => setUserType('client')}
             >
               Je suis client
             </button>
             <button
-              className={`px-4 py-2 rounded-md ${
+              className={`px-4 py-2 rounded-md w-40 flex-grow text-center ${
                 userType === 'delivery'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-foreground hover:bg-accent'
