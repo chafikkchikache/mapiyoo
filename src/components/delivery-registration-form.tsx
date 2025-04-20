@@ -433,9 +433,11 @@ const DeliveryRegistrationForm: React.FC<DeliveryRegistrationFormProps> = ({ acc
             />
           </>
         )}
-        <Button type="submit">
-          {accountType === 'individual' ? 'S\'inscrire en tant qu\'individu' : 'S\'inscrire en tant que société'}
-        </Button>
+        <div className="flex justify-center">
+          <Button type="submit">
+            {accountType === 'individual' ? 'S\'inscrire en tant qu\'individu' : 'S\'inscrire en tant que société'}
+          </Button>
+        </div>
       </form>
     </Form>
   );
