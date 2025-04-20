@@ -58,7 +58,8 @@ const companySchemaRequired = companySchema.extend({
   whatsappPhone: z.string().regex(/^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/, { message: "Invalid WhatsApp phone number." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
-  rcOrIfNumber: z.string(),
+  rcOrIfNumber: z.string().min(1, {message: "RC or IF Number is required"}),
+  rcOrIfFile: z.string().min(1, {message: "RC or IF File is required"}),
 })
 
 type IndividualFormValues = z.infer<typeof individualSchemaRequired>;
