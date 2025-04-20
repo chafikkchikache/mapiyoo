@@ -46,19 +46,19 @@ export default function Home() {
           <div className="flex items-center space-x-2">
             {/* Added flex and spacing for better alignment */}
             <Link href="/login">
-              <Button variant="outline">Login</Button>
+              <Button variant="outline">Se connecter</Button>
             </Link>
             <Link href="/register">
-              <Button>Sign Up</Button>
+              <Button>S'inscrire</Button>
             </Link>
-            <Button variant="ghost">Help</Button>
+            <Button variant="ghost">Aide</Button>
           </div>
 
           {/* Mobile Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild className="">
               <Button variant="ghost" className="h-8 w-8 p-0 md:hidden">
-                <span className="sr-only">Open menu</span>
+                <span className="sr-only">Ouvrir le menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -80,7 +80,7 @@ export default function Home() {
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Link href="#" className="w-full">
-                  Help
+                  Aide
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -93,19 +93,19 @@ export default function Home() {
           {/* Grid changes to 2 columns on medium screens and up */}
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
-              Deliver a Package
+              Envoyer un Colis
             </h2>
             <p className="text-muted-foreground mb-6 text-center">
               Expédiez vos colis en un clin d’œil...
             </p>
             <Link href="/package-delivery">
-              <Button>Livrer un colis</Button>
+              <Button>Commencer la livraison</Button>
             </Link>
           </div>
 
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
-              Deliver a Meal
+              Livraison de repas
             </h2>
             <p className="text-muted-foreground mb-6 text-center">
               Optimisez vos livraisons et touchez plus de clients...
@@ -119,12 +119,12 @@ export default function Home() {
         {/* New section for finding a ride */}
         <section className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card mt-8">
           <h2 className="text-2xl font-semibold mb-4 text-foreground">
-            Looking for a Ride?
+            Vous cherchez un trajet ?
           </h2>
           <p className="text-muted-foreground mb-6 text-center">
             Réservez une course maintenant ou planifiez-la plus tard, directement depuis votre navigateur.
           </p>
-          <Button>Trouver un trajet</Button>
+          <Button>Trouver un chauffeur</Button>
         </section>
       </main>
 
@@ -134,4 +134,3 @@ export default function Home() {
     </div>
   );
 }
-
