@@ -78,6 +78,11 @@ export default function Home() {
                   Course
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Link href="#" className="w-full">
+                  Help
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
