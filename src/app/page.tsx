@@ -56,13 +56,13 @@ export default function Home() {
 
           {/* Mobile Menu */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild className="md:hidden">
+            <DropdownMenuTrigger asChild className="sm:hidden">
               <Button variant="ghost" className="h-8 w-8 p-0">
                 <span className="sr-only">Open menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="md:hidden">
+            <DropdownMenuContent align="end" className="sm:hidden">
               <DropdownMenuItem>
                 <Link href="#" className="w-full">
                   Repas
@@ -113,7 +113,7 @@ export default function Home() {
       </main>
 
       <footer className="bg-secondary p-4 text-center text-muted-foreground">
-        <p>© 2024 MapYOO. All rights reserved.</p>
+        <p className="text-sm">© 2024 MapYOO. All rights reserved.</p>
       </footer>
     </div>
   );
