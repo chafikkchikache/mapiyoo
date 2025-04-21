@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {Location, GpsFixed} from 'lucide-react';
+import {Location, Locate } from 'lucide-react';
 
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -209,7 +209,7 @@ const MealDeliveryPage = () => {
   return (
     <LoadScript googleMapsApiKey={googleMapsApiKey}>
       <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-semibold mb-4">Livraison de Repas</h1>
+        <h1 className="text-2xl font-semibold mb-4">Snack et Restauration</h1>
 
         <div className="flex flex-col md:flex-row gap-4">
           <div className="w-full md:w-1/2">
@@ -240,7 +240,7 @@ const MealDeliveryPage = () => {
                     onClick={handleUseCurrentLocation}
                     disabled={!hasGpsPermission}
                   >
-                    <GpsFixed className="h-5 w-5" />
+                    <Locate className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
