@@ -120,7 +120,7 @@ export default function Home() {
             <p className="text-muted-foreground mb-6 text-center">
              Optimisez vos livraisons et touchez plus de clients...
             </p>
-            <Button onClick={() => handleNavigation('/meal-delivery')}>Livrer un repas</Button>
+            <Button onClick={() =>  router.push('/meal-delivery')}>Livrer un repas</Button>
           </div>
         </section>
 
@@ -142,3 +142,4 @@ export default function Home() {
     </div>
   );
 }
+
