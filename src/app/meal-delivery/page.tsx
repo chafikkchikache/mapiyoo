@@ -2,7 +2,6 @@
 
 import React, {useState, useRef, useEffect} from 'react';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
@@ -43,30 +42,49 @@ const MealDeliveryPage = () => {
   const {toast} = useToast();
 
   useEffect(() => {
-    const map = L.map('map', {
-      center: [defaultLocation.lat, defaultLocation.lng],
-      zoom: 10,
-      doubleClickZoom: false,
-      closePopupOnClick: false,
-      crs: L.CRS.EPSG3857,
-      attributionControl: false,
-    });
+    let L; // Declare L outside the try block
+    const initializeMap = async () => {
+      try {
+        // Dynamically import Leaflet
+        L = (await import('leaflet')).default;
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+        const map = L.map('map', {
+          center: [defaultLocation.lat, defaultLocation.lng],
+          zoom: 10,
+          doubleClickZoom: false,
+          closePopupOnClick: false,
+          crs: L.CRS.EPSG3857,
+          attributionControl: false,
+        });
 
-    mapRef.current = map;
-    setMapLoaded(true);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution:
+            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
 
-    map.on('click', e => {
-      handleMapClick(e);
-    });
+        mapRef.current = map;
+        setMapLoaded(true);
+
+        map.on('click', e => {
+          handleMapClick(e);
+        });
+      } catch (error) {
+        console.error('Failed to load Leaflet:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Erreur de carte',
+          description: 'Impossible de charger la carte. Veuillez réessayer plus tard.',
+        });
+      }
+    };
+
+    initializeMap();
 
     return () => {
-      map.remove();
+      if (mapRef.current) {
+        mapRef.current.remove();
+      }
     };
   }, []);
 
