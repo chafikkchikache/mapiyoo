@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {Locate, MapPin} from 'lucide-react';
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 
 const mapContainerStyle = {
   width: '100%',
@@ -35,19 +36,20 @@ const MealDeliveryPage = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [hasGpsPermission, setHasGpsPermission] = useState(false);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false);
-  const [mapLoaded, setMapLoaded] = useState(false); // Track if the map is loaded
+  const [mapLoaded, setMapLoaded] = useState(false);
   const mapRef = useRef(null);
   const originInputRef = useRef(null);
   const destinationInputRef = useRef(null);
   const {toast} = useToast();
   const [originMarker, setOriginMarker] = useState(null);
   const [destinationMarker, setDestinationMarker] = useState(null);
+  const [routeLine, setRouteLine] = useState(null);
+  const [clickCount, setClickCount] = useState(0);
 
   useEffect(() => {
-    let L; // Declare L outside the try block
+    let L;
     const initializeMap = async () => {
       try {
-        // Dynamically import Leaflet
         L = (await import('leaflet')).default;
 
         const map = L.map('map', {
@@ -102,12 +104,14 @@ const MealDeliveryPage = () => {
         });
         setHasGpsPermission(true);
 
-        // Add a marker for the current location
         if (mapRef.current && position) {
           const L = (await import('leaflet')).default;
           const newMarker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(mapRef.current);
-          setOriginMarker(newMarker); // Set as origin marker
+          setOriginMarker(newMarker);
           setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
+
+          mapRef.current.setView([position.coords.latitude, position.coords.longitude], 15);
+
         }
       } catch (error) {
         console.error('Error accessing GPS location:', error);
@@ -129,23 +133,67 @@ const MealDeliveryPage = () => {
       return;
     }
 
-    // Removed Google Maps Directions Service
-    toast({
-      variant: 'destructive',
-      title: 'Calcul de l’itinéraire non supporté',
-      description:
-        'Le calcul de l’itinéraire n’est pas pris en charge avec OpenStreetMap.',
-    });
+    try {
+      const originCoords = origin.split(',').map(Number);
+      const destinationCoords = destination.split(',').map(Number);
+
+      const response = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${originCoords[1]},${originCoords[0]};${destinationCoords[1]},${destinationCoords[0]}?geometries=geojson`
+      );
+
+      if (!response.ok) {
+        throw new Error(`OSRM error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const geoJson = route.geometry;
+
+        const L = (await import('leaflet')).default;
+        if (routeLine) {
+          mapRef.current.removeLayer(routeLine);
+        }
+
+        const newRouteLine = L.geoJSON(geoJson, {
+          style: {color: 'blue'},
+        }).addTo(mapRef.current);
+
+        setRouteLine(newRouteLine);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Aucun itinéraire trouvé',
+          description: 'Impossible de calculer un itinéraire entre ces points.',
+        });
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur de calcul d’itinéraire',
+        description: 'Une erreur s’est produite lors du calcul de l’itinéraire.',
+      });
+    }
   };
 
   const handleOriginFromMap = () => {
-    // Logic to get address from map click
-    console.log('Obtenir l’origine de la carte');
+    if (originInputRef.current) {
+      originInputRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
   };
 
   const handleDestinationFromMap = () => {
-    // Logic to get address from map click
-    console.log('Obtenir la destination de la carte');
+    if (destinationInputRef.current) {
+      destinationInputRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
   };
 
   const handleUseCurrentLocation = async () => {
@@ -174,6 +222,17 @@ const MealDeliveryPage = () => {
     }
 
     setOrigin(`${currentLocation.lat}, ${currentLocation.lng}`);
+    if (originInputRef.current) {
+      originInputRef.current.value = `${currentLocation.lat}, ${currentLocation.lng}`;
+    }
+
+    const L = (await import('leaflet')).default;
+    if (mapRef.current && originMarker) {
+      mapRef.current.removeLayer(originMarker);
+    }
+    const newMarker = L.marker([currentLocation.lat, currentLocation.lng]).addTo(mapRef.current);
+    setOriginMarker(newMarker);
+    mapRef.current.setView([currentLocation.lat, currentLocation.lng], 15);
   };
 
   const handleGpsDialogAction = async () => {
@@ -190,14 +249,19 @@ const MealDeliveryPage = () => {
 
       const L = (await import('leaflet')).default;
       if (mapRef.current && originMarker) {
-        mapRef.current.removeLayer(originMarker); // remove existing marker
+        mapRef.current.removeLayer(originMarker);
       }
+
       if (mapRef.current) {
         const newMarker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(mapRef.current);
         setOriginMarker(newMarker);
       }
 
       setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
+      if (originInputRef.current) {
+        originInputRef.current.value = `${position.coords.latitude}, ${position.coords.longitude}`;
+      }
+
       toast({
         title: 'GPS Activé',
         description: 'Votre position a été définie comme origine.',
@@ -225,196 +289,204 @@ const MealDeliveryPage = () => {
     }
 
     const latLng = e.latlng;
-    setDestination(`${latLng.lat}, ${latLng.lng}`);
-
     const L = (await import('leaflet')).default;
-    if (mapRef.current && destinationMarker) {
-      mapRef.current.removeLayer(destinationMarker); // Remove existing destination marker
-    }
 
-    if (mapRef.current) {
-      const newMarker = L.marker([latLng.lat, latLng.lng]).addTo(mapRef.current);
-      setDestinationMarker(newMarker); // Set new destination marker
-    }
+    if (clickCount === 0) {
+      setOrigin(`${latLng.lat}, ${latLng.lng}`);
+      if (originInputRef.current) {
+        originInputRef.current.value = `${latLng.lat}, ${latLng.lng}`;
+      }
 
-    // Reverse geocoding with OpenStreetMap Nominatim API
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latLng.lat}&lon=${latLng.lng}`)
-      .then(response => response.json())
-      .then(data => {
-        if (data && data.display_name) {
-          setDestination(data.display_name);
-          if (destinationInputRef.current) {
-            destinationInputRef.current.value = data.display_name;
-          }
-
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Aucun résultat trouvé',
-            description: 'Impossible de déterminer l’adresse à partir du clic sur la carte.',
-          });
-        }
-      })
-      .catch(error => {
-        console.error('Erreur lors du géocodage inverse:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Échec du géocodage',
-          description: 'Échec du géocodage inverse en raison de : ' + error,
-        });
-      });
-  };
-
-  const requestGpsPermission = async () => {
-    try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject);
-      });
-      setCurrentLocation({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      });
-      setHasGpsPermission(true);
-
-      const L = (await import('leaflet')).default;
       if (mapRef.current && originMarker) {
-        mapRef.current.removeLayer(originMarker); // remove existing marker
+        mapRef.current.removeLayer(originMarker);
+      }
+      const newOriginMarker = L.marker([latLng.lat, latLng.lng]).addTo(mapRef.current).bindPopup("Départ").openPopup();
+      setOriginMarker(newOriginMarker);
+
+      setDestination('');
+      setDestinationMarker(null);
+
+      setClickCount(1);
+    } else if (clickCount === 1) {
+      setDestination(`${latLng.lat}, ${latLng.lng}`);
+      if (destinationInputRef.current) {
+        destinationInputRef.current.value = `${latLng.lat}, ${latLng.lng}`;
       }
 
-      if (mapRef.current) {
-        const newMarker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(mapRef.current);
-        setOriginMarker(newMarker);
+      if (mapRef.current && destinationMarker) {
+        mapRef.current.removeLayer(destinationMarker);
       }
+      const newDestinationMarker = L.marker([latLng.lat, latLng.lng]).addTo(mapRef.current).bindPopup("Destination").openPopup();
+      setDestinationMarker(newDestinationMarker);
 
-      setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
-      toast({
-        title: 'GPS Activé',
-        description: 'Votre position a été déterminée.',
-      });
-    } catch (error) {
-      console.error('Error accessing GPS location:', error);
-      setHasGpsPermission(false);
+      setClickCount(2);
+    } else {
       toast({
         variant: 'destructive',
-        title: 'Accès GPS Refusé',
-        description:
-          'Veuillez activer les autorisations GPS dans les paramètres de votre navigateur pour utiliser cette application.',
+        title: 'Maximum de points atteints',
+        description: 'Veuillez réinitialiser la carte pour choisir de nouveaux points.',
       });
+    }
+  };
+
+  const resetMap = () => {
+    if (mapRef.current) {
+      if (originMarker) mapRef.current.removeLayer(originMarker);
+      if (destinationMarker) mapRef.current.removeLayer(destinationMarker);
+      if (routeLine) mapRef.current.removeLayer(routeLine);
+
+      setOrigin('');
+      setDestination('');
+      if (originInputRef.current) originInputRef.current.value = '';
+      if (destinationInputRef.current) destinationInputRef.current.value = '';
+      setOriginMarker(null);
+      setDestinationMarker(null);
+      setRouteLine(null);
+      setClickCount(0);
+
+      mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
     }
   };
 
   return (
-    <div>
-      <div id="map" style={mapContainerStyle} />
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-semibold mb-4">Snack et Restauration</h1>
+    <TooltipProvider delayDuration={0}>
+      <div>
+        <div id="map" style={mapContainerStyle} />
+        <div className="container mx-auto p-4">
+          <h1 className="text-2xl font-semibold mb-4">Snack et Restauration</h1>
 
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="w-full md:w-1/2">
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Adresse de ramassage
-              </label>
-              <div className="relative flex items-center">
-                <Input
-                  type="text"
-                  className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10"
-                  placeholder="Adresse de ramassage"
-                  value={origin}
-                  onChange={e => setOrigin(e.target.value)}
-                  ref={originInputRef}
-                />
-                <div className="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleOriginFromMap}
-                  >
-                    <MapPin className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleUseCurrentLocation}
-                  >
-                    <Locate className="h-5 w-5" />
-                  </Button>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="w-full md:w-1/2">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Adresse de ramassage
+                </label>
+                <div className="relative flex items-center">
+                  <Input
+                    type="text"
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10"
+                    placeholder="Adresse de ramassage"
+                    value={origin}
+                    onChange={e => setOrigin(e.target.value)}
+                    ref={originInputRef}
+                  />
+                  <div className="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleOriginFromMap}
+                        >
+                          <MapPin className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Choisir l’adresse de ramassage sur la carte
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleUseCurrentLocation}
+                          disabled={!hasGpsPermission}
+                        >
+                          <Locate className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {hasGpsPermission ? "Utiliser ma position actuelle" : "Activer le GPS"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Adresse de destination
-              </label>
-              <div className="relative flex items-center">
-                <Input
-                  type="text"
-                  className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10"
-                  placeholder="Adresse de destination"
-                  value={destination}
-                  onChange={e => setDestination(e.target.value)}
-                  ref={destinationInputRef}
-                />
-                <div className="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleDestinationFromMap}
-                  >
-                    <MapPin className="h-5 w-5" />
-                  </Button>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Adresse de destination
+                </label>
+                <div className="relative flex items-center">
+                  <Input
+                    type="text"
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10"
+                    placeholder="Adresse de destination"
+                    value={destination}
+                    onChange={e => setDestination(e.target.value)}
+                    ref={destinationInputRef}
+                  />
+                  <div className="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleDestinationFromMap}
+                        >
+                          <MapPin className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Choisir l’adresse de destination sur la carte
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
               </div>
+              <div className="flex gap-2">
+                <Button onClick={calculateRoute} disabled={clickCount !== 2}>Calculer la Route</Button>
+                <Button onClick={resetMap} variant="secondary">Réinitialiser</Button>
+              </div>
             </div>
-            <Button onClick={calculateRoute}>Calculer la Route</Button>
+
+            <div className="w-full md:w-1/2">
+              {!hasGpsPermission ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Accès GPS Requis</AlertTitle>
+                  <AlertDescription>
+                    Veuillez autoriser l’accès GPS pour utiliser cette fonctionnalité.
+                  </AlertDescription>
+                  <Button onClick={handleUseCurrentLocation} className="mt-2">
+                    Autoriser l'accès GPS
+                  </Button>
+                </Alert>
+              ) : null}
+            </div>
           </div>
 
-          <div className="w-full md:w-1/2">
-            {!hasGpsPermission ? (
-              <Alert variant="destructive">
-                <AlertTitle>Accès GPS Requis</AlertTitle>
-                <AlertDescription>
-                  Veuillez autoriser l’accès GPS pour utiliser cette fonctionnalité.
-                </AlertDescription>
-                <Button onClick={requestGpsPermission} className="mt-2">
-                  Autoriser l'accès GPS
-                </Button>
-              </Alert>
-            ) : null}
-          </div>
+          {currentLocation && (
+            <div className="mt-4">
+              <h2 className="text-xl font-semibold mb-2">Options de Livraison</h2>
+              <div className="flex space-x-4">
+                <Button>Ouvrir une Enchère</Button>
+                <Button>Trouver un Livreur</Button>
+                <Button>MapYOO Service</Button>
+              </div>
+            </div>
+          )}
+
+          <AlertDialog open={isGpsDialogOpen} onOpenChange={setIsGpsDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Activer le GPS ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Voulez-vous activer le GPS pour une localisation automatique ?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsGpsDialogOpen(false)}>
+                  Non, spécifier manuellement
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={handleGpsDialogAction}>
+                  Activer GPS
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
-
-        {currentLocation && (
-          <div className="mt-4">
-            <h2 className="text-xl font-semibold mb-2">Options de Livraison</h2>
-            <div className="flex space-x-4">
-              <Button>Ouvrir une Enchère</Button>
-              <Button>Trouver un Livreur</Button>
-              <Button>MapYOO Service</Button>
-            </div>
-          </div>
-        )}
-
-        <AlertDialog open={isGpsDialogOpen} onOpenChange={setIsGpsDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Activer le GPS ?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Voulez-vous activer le GPS pour une localisation automatique ?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setIsGpsDialogOpen(false)}>
-                Non, spécifier manuellement
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={handleGpsDialogAction}>
-                Activer GPS
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 
