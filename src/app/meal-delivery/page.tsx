@@ -1,6 +1,6 @@
 'use client';
 
-import React, {useState, useRef} from 'react';
+import React, {useState, useRef, useEffect} from 'react';
 import {
   GoogleMap,
   LoadScript,
@@ -53,6 +53,26 @@ const MealDeliveryPage = () => {
     disableDefaultUI: true,
     zoomControl: true,
   };
+
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        setCurrentLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setHasGpsPermission(true);
+      } catch (error) {
+        console.error('Error accessing GPS location:', error);
+        setHasGpsPermission(false);
+      }
+    };
+
+    getCameraPermission();
+  }, []);
 
   const calculateRoute = async () => {
     if (origin === '' || destination === '') {
@@ -194,6 +214,32 @@ const MealDeliveryPage = () => {
     setMapLoaded(true); // Set mapLoaded to true when the map is loaded
   };
 
+  const requestGpsPermission = async () => {
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+      setCurrentLocation({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+      setHasGpsPermission(true);
+      toast({
+        title: 'GPS Activé',
+        description: 'Votre position a été déterminée.',
+      });
+    } catch (error) {
+      console.error('Error accessing GPS location:', error);
+      setHasGpsPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Accès GPS Refusé',
+        description:
+          'Veuillez activer les autorisations GPS dans les paramètres de votre navigateur pour utiliser cette application.',
+      });
+    }
+  };
+
   return (
     <LoadScript googleMapsApiKey={googleMapsApiKey}>
       <div className="container mx-auto p-4">
@@ -285,14 +331,17 @@ const MealDeliveryPage = () => {
                 <Marker position={currentLocation} label="Votre Position" />
               )}
             </GoogleMap>
-            {!hasGpsPermission && (
+            {!hasGpsPermission ? (
               <Alert variant="destructive">
                 <AlertTitle>Accès GPS Requis</AlertTitle>
                 <AlertDescription>
                   Veuillez autoriser l’accès GPS pour utiliser cette fonctionnalité.
                 </AlertDescription>
+                <Button onClick={requestGpsPermission} className="mt-2">
+                  Autoriser l'accès GPS
+                </Button>
               </Alert>
-            )}
+            ) : null}
           </div>
         </div>
 
