@@ -1,6 +1,6 @@
 'use client';
 
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef} from 'react';
 import {
   GoogleMap,
   LoadScript,
@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {MapPin, Locate } from 'lucide-react';
+import {Locate, MapPin} from 'lucide-react';
 
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -43,6 +43,7 @@ const MealDeliveryPage = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [hasGpsPermission, setHasGpsPermission] = useState(false);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false); // Track if the map is loaded
   const mapRef = useRef(null);
   const originInputRef = useRef(null);
   const destinationInputRef = useRef(null);
@@ -53,38 +54,13 @@ const MealDeliveryPage = () => {
     zoomControl: true,
   };
 
-  useEffect(() => {
-    const getGpsPermission = async () => {
-      try {
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject);
-        });
-        setHasGpsPermission(true);
-        setCurrentLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      } catch (error) {
-        console.error('Error getting GPS location:', error);
-        setHasGpsPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'GPS Access Denied',
-          description:
-            'Please enable GPS permissions in your browser settings to use this app.',
-        });
-      }
-    };
-
-    getGpsPermission();
-  }, [toast]);
-
   const calculateRoute = async () => {
     if (origin === '' || destination === '') {
       toast({
         variant: 'destructive',
-        title: 'Missing Information',
-        description: 'Please enter both origin and destination addresses.',
+        title: 'Information Manquante',
+        description:
+          'Veuillez entrer les adresses de départ et de destination.',
       });
       return;
     }
@@ -104,8 +80,8 @@ const MealDeliveryPage = () => {
           setDirections(null);
           toast({
             variant: 'destructive',
-            title: 'Route Calculation Failed',
-            description: 'Could not calculate the route. Please try again.',
+            title: 'Échec du Calcul de l’itinéraire',
+            description: 'Impossible de calculer l’itinéraire. Veuillez réessayer.',
           });
         }
       }
@@ -114,15 +90,24 @@ const MealDeliveryPage = () => {
 
   const handleOriginFromMap = () => {
     // Logic to get address from map click
-    console.log('Get origin from map');
+    console.log('Obtenir l’origine de la carte');
   };
 
   const handleDestinationFromMap = () => {
     // Logic to get address from map click
-    console.log('Get destination from map');
+    console.log('Obtenir la destination de la carte');
   };
 
-  const handleUseCurrentLocation = () => {
+  const handleUseCurrentLocation = async () => {
+    if (!mapLoaded) {
+      toast({
+        variant: 'destructive',
+        title: 'Carte en chargement',
+        description: 'Veuillez attendre que la carte soit complètement chargée.',
+      });
+      return;
+    }
+
     if (!hasGpsPermission) {
       setIsGpsDialogOpen(true);
       return;
@@ -131,8 +116,9 @@ const MealDeliveryPage = () => {
     if (!currentLocation) {
       toast({
         variant: 'destructive',
-        title: 'Location Not Available',
-        description: 'Current location is not available. Please try again.',
+        title: 'Position Non Disponible',
+        description:
+          'La position actuelle n’est pas disponible. Veuillez réessayer.',
       });
       return;
     }
@@ -151,8 +137,8 @@ const MealDeliveryPage = () => {
         setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
         setHasGpsPermission(true);
         toast({
-          title: 'GPS Activated',
-          description: 'Your location has been set as the origin.',
+          title: 'GPS Activé',
+          description: 'Votre position a été définie comme origine.',
         });
       },
       error => {
@@ -160,9 +146,9 @@ const MealDeliveryPage = () => {
         setHasGpsPermission(false);
         toast({
           variant: 'destructive',
-          title: 'GPS Access Denied',
+          title: 'Accès GPS Refusé',
           description:
-            'Please enable GPS permissions in your browser settings to use this app.',
+            'Veuillez activer les autorisations GPS dans les paramètres de votre navigateur pour utiliser cette application.',
         });
       }
     );
@@ -188,15 +174,16 @@ const MealDeliveryPage = () => {
         } else {
           toast({
             variant: 'destructive',
-            title: 'No results found',
-            description: 'Could not determine address from map click.',
+            title: 'Aucun résultat trouvé',
+            description:
+              'Impossible de déterminer l’adresse à partir du clic sur la carte.',
           });
         }
       } else {
         toast({
           variant: 'destructive',
-          title: 'Geocoder failed',
-          description: 'Geocoder failed due to: ' + status,
+          title: 'Échec du géocodeur',
+          description: 'Échec du géocodeur en raison de : ' + status,
         });
       }
     });
@@ -204,6 +191,7 @@ const MealDeliveryPage = () => {
 
   const onMapLoad = map => {
     mapRef.current = map;
+    setMapLoaded(true); // Set mapLoaded to true when the map is loaded
   };
 
   return (
@@ -238,7 +226,6 @@ const MealDeliveryPage = () => {
                     variant="ghost"
                     size="icon"
                     onClick={handleUseCurrentLocation}
-                    disabled={!hasGpsPermission}
                   >
                     <Locate className="h-5 w-5" />
                   </Button>
@@ -300,9 +287,9 @@ const MealDeliveryPage = () => {
             </GoogleMap>
             {!hasGpsPermission && (
               <Alert variant="destructive">
-                <AlertTitle>GPS Access Required</AlertTitle>
+                <AlertTitle>Accès GPS Requis</AlertTitle>
                 <AlertDescription>
-                  Please allow GPS access to use this feature.
+                  Veuillez autoriser l’accès GPS pour utiliser cette fonctionnalité.
                 </AlertDescription>
               </Alert>
             )}
@@ -323,9 +310,9 @@ const MealDeliveryPage = () => {
         <AlertDialog open={isGpsDialogOpen} onOpenChange={setIsGpsDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Activer le GPS ?</AlertDialogTitle>
+              <AlertDialogTitle>Activer le GPS ?</AlertDialogTitle>
               <AlertDialogDescription>
-                Voulez-vous activer le GPS pour une localisation automatique ?
+                Voulez-vous activer le GPS pour une localisation automatique ?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
