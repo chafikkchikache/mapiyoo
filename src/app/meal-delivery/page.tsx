@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {Location, Locate } from 'lucide-react';
+import {MapPin, Locate } from 'lucide-react';
 
 const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -232,7 +232,7 @@ const MealDeliveryPage = () => {
                     size="icon"
                     onClick={handleOriginFromMap}
                   >
-                    <Location className="h-5 w-5" />
+                    <MapPin className="h-5 w-5" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -264,7 +264,7 @@ const MealDeliveryPage = () => {
                     size="icon"
                     onClick={handleDestinationFromMap}
                   >
-                    <Location className="h-5 w-5" />
+                    <MapPin className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
