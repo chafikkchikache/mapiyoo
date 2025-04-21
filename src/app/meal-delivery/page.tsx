@@ -1,12 +1,8 @@
 'use client';
 
 import React, {useState, useRef, useEffect} from 'react';
-import {
-  GoogleMap,
-  LoadScript,
-  Marker,
-  DirectionsRenderer,
-} from '@react-google-maps/api';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
@@ -24,8 +20,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import {Locate, MapPin} from 'lucide-react';
 
-const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-
 const mapContainerStyle = {
   width: '100%',
   height: '400px',
@@ -39,7 +33,6 @@ const defaultLocation = {
 const MealDeliveryPage = () => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [directions, setDirections] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [hasGpsPermission, setHasGpsPermission] = useState(false);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false);
@@ -49,10 +42,33 @@ const MealDeliveryPage = () => {
   const destinationInputRef = useRef(null);
   const {toast} = useToast();
 
-  const mapOptions = {
-    disableDefaultUI: true,
-    zoomControl: true,
-  };
+  useEffect(() => {
+    const map = L.map('map', {
+      center: [defaultLocation.lat, defaultLocation.lng],
+      zoom: 10,
+      doubleClickZoom: false,
+      closePopupOnClick: false,
+      crs: L.CRS.EPSG3857,
+      attributionControl: false,
+    });
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    mapRef.current = map;
+    setMapLoaded(true);
+
+    map.on('click', e => {
+      handleMapClick(e);
+    });
+
+    return () => {
+      map.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -85,27 +101,13 @@ const MealDeliveryPage = () => {
       return;
     }
 
-    const directionsService = new google.maps.DirectionsService();
-    directionsService.route(
-      {
-        origin: origin,
-        destination: destination,
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === google.maps.DirectionsStatus.OK && result) {
-          setDirections(result);
-        } else {
-          console.error('Directions request failed due to ' + status);
-          setDirections(null);
-          toast({
-            variant: 'destructive',
-            title: 'Échec du Calcul de l’itinéraire',
-            description: 'Impossible de calculer l’itinéraire. Veuillez réessayer.',
-          });
-        }
-      }
-    );
+    // Removed Google Maps Directions Service
+    toast({
+      variant: 'destructive',
+      title: 'Calcul de l’itinéraire non supporté',
+      description:
+        'Le calcul de l’itinéraire n’est pas pris en charge avec OpenStreetMap.',
+    });
   };
 
   const handleOriginFromMap = () => {
@@ -174,44 +176,42 @@ const MealDeliveryPage = () => {
     );
   };
 
-  const handleMapClick = (event, type) => {
-    const latLng = {
-      lat: event.latLng.lat(),
-      lng: event.latLng.lng(),
-    };
-    const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({location: latLng}, (results, status) => {
-      if (status === 'OK') {
-        if (results[0]) {
-          const address = results[0].formatted_address;
-          if (type === 'origin') {
-            setOrigin(address);
-            originInputRef.current.value = address; // Update the input value
-          } else {
-            setDestination(address);
-            destinationInputRef.current.value = address; // Update the input value
-          }
+  const handleMapClick = (e) => {
+    if (!mapLoaded) {
+      toast({
+        variant: 'destructive',
+        title: 'Carte en chargement',
+        description: 'Veuillez attendre que la carte soit complètement chargée.',
+      });
+      return;
+    }
+
+    const latLng = e.latlng;
+    setDestination(`${latLng.lat}, ${latLng.lng}`);
+
+    // Reverse geocoding with OpenStreetMap Nominatim API
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latLng.lat}&lon=${latLng.lng}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data && data.display_name) {
+          setDestination(data.display_name);
+          destinationInputRef.current.value = data.display_name;
         } else {
           toast({
             variant: 'destructive',
             title: 'Aucun résultat trouvé',
-            description:
-              'Impossible de déterminer l’adresse à partir du clic sur la carte.',
+            description: 'Impossible de déterminer l’adresse à partir du clic sur la carte.',
           });
         }
-      } else {
+      })
+      .catch(error => {
+        console.error('Erreur lors du géocodage inverse:', error);
         toast({
           variant: 'destructive',
-          title: 'Échec du géocodeur',
-          description: 'Échec du géocodeur en raison de : ' + status,
+          title: 'Échec du géocodage',
+          description: 'Échec du géocodage inverse en raison de : ' + error,
         });
-      }
-    });
-  };
-
-  const onMapLoad = map => {
-    mapRef.current = map;
-    setMapLoaded(true); // Set mapLoaded to true when the map is loaded
+      });
   };
 
   const requestGpsPermission = async () => {
@@ -241,7 +241,8 @@ const MealDeliveryPage = () => {
   };
 
   return (
-    <LoadScript googleMapsApiKey={googleMapsApiKey}>
+    <div>
+      <div id="map" style={mapContainerStyle} />
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-semibold mb-4">Snack et Restauration</h1>
 
@@ -306,31 +307,6 @@ const MealDeliveryPage = () => {
           </div>
 
           <div className="w-full md:w-1/2">
-            <GoogleMap
-              mapContainerStyle={mapContainerStyle}
-              defaultCenter={defaultLocation}
-              zoom={10}
-              options={mapOptions}
-              onClick={e => handleMapClick(e, 'destination')}
-              onLoad={onMapLoad}
-            >
-              {directions && (
-                <DirectionsRenderer
-                  directions={directions}
-                  options={{
-                    polylineOptions: {
-                      strokeColor: 'green',
-                      strokeOpacity: 0.8,
-                      strokeWeight: 5,
-                    },
-                    suppressMarkers: true,
-                  }}
-                />
-              )}
-              {currentLocation && (
-                <Marker position={currentLocation} label="Votre Position" />
-              )}
-            </GoogleMap>
             {!hasGpsPermission ? (
               <Alert variant="destructive">
                 <AlertTitle>Accès GPS Requis</AlertTitle>
@@ -345,7 +321,7 @@ const MealDeliveryPage = () => {
           </div>
         </div>
 
-        {directions && (
+        {currentLocation && (
           <div className="mt-4">
             <h2 className="text-xl font-semibold mb-2">Options de Livraison</h2>
             <div className="flex space-x-4">
@@ -375,7 +351,7 @@ const MealDeliveryPage = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </LoadScript>
+    </div>
   );
 };
 
