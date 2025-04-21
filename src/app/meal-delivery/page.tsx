@@ -40,6 +40,8 @@ const MealDeliveryPage = () => {
   const originInputRef = useRef(null);
   const destinationInputRef = useRef(null);
   const {toast} = useToast();
+  const [originMarker, setOriginMarker] = useState(null);
+  const [destinationMarker, setDestinationMarker] = useState(null);
 
   useEffect(() => {
     let L; // Declare L outside the try block
@@ -99,6 +101,14 @@ const MealDeliveryPage = () => {
           lng: position.coords.longitude,
         });
         setHasGpsPermission(true);
+
+        // Add a marker for the current location
+        if (mapRef.current && position) {
+          const L = (await import('leaflet')).default;
+          const newMarker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(mapRef.current);
+          setOriginMarker(newMarker); // Set as origin marker
+          setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
+        }
       } catch (error) {
         console.error('Error accessing GPS location:', error);
         setHasGpsPermission(false);
@@ -166,35 +176,45 @@ const MealDeliveryPage = () => {
     setOrigin(`${currentLocation.lat}, ${currentLocation.lng}`);
   };
 
-  const handleGpsDialogAction = () => {
+  const handleGpsDialogAction = async () => {
     setIsGpsDialogOpen(false);
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        setCurrentLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-        setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
-        setHasGpsPermission(true);
-        toast({
-          title: 'GPS Activé',
-          description: 'Votre position a été définie comme origine.',
-        });
-      },
-      error => {
-        console.error('Error getting GPS location:', error);
-        setHasGpsPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Accès GPS Refusé',
-          description:
-            'Veuillez activer les autorisations GPS dans les paramètres de votre navigateur pour utiliser cette application.',
-        });
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+      setCurrentLocation({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+      setHasGpsPermission(true);
+
+      const L = (await import('leaflet')).default;
+      if (mapRef.current && originMarker) {
+        mapRef.current.removeLayer(originMarker); // remove existing marker
       }
-    );
+      if (mapRef.current) {
+        const newMarker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(mapRef.current);
+        setOriginMarker(newMarker);
+      }
+
+      setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
+      toast({
+        title: 'GPS Activé',
+        description: 'Votre position a été définie comme origine.',
+      });
+    } catch (error) {
+      console.error('Error getting GPS location:', error);
+      setHasGpsPermission(false);
+      toast({
+        variant: 'destructive',
+        title: 'Accès GPS Refusé',
+        description:
+          'Veuillez activer les autorisations GPS dans les paramètres de votre navigateur pour utiliser cette application.',
+      });
+    }
   };
 
-  const handleMapClick = (e) => {
+  const handleMapClick = async (e) => {
     if (!mapLoaded) {
       toast({
         variant: 'destructive',
@@ -207,13 +227,26 @@ const MealDeliveryPage = () => {
     const latLng = e.latlng;
     setDestination(`${latLng.lat}, ${latLng.lng}`);
 
+    const L = (await import('leaflet')).default;
+    if (mapRef.current && destinationMarker) {
+      mapRef.current.removeLayer(destinationMarker); // Remove existing destination marker
+    }
+
+    if (mapRef.current) {
+      const newMarker = L.marker([latLng.lat, latLng.lng]).addTo(mapRef.current);
+      setDestinationMarker(newMarker); // Set new destination marker
+    }
+
     // Reverse geocoding with OpenStreetMap Nominatim API
     fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latLng.lat}&lon=${latLng.lng}`)
       .then(response => response.json())
       .then(data => {
         if (data && data.display_name) {
           setDestination(data.display_name);
-          destinationInputRef.current.value = data.display_name;
+          if (destinationInputRef.current) {
+            destinationInputRef.current.value = data.display_name;
+          }
+
         } else {
           toast({
             variant: 'destructive',
@@ -242,6 +275,18 @@ const MealDeliveryPage = () => {
         lng: position.coords.longitude,
       });
       setHasGpsPermission(true);
+
+      const L = (await import('leaflet')).default;
+      if (mapRef.current && originMarker) {
+        mapRef.current.removeLayer(originMarker); // remove existing marker
+      }
+
+      if (mapRef.current) {
+        const newMarker = L.marker([position.coords.latitude, position.coords.longitude]).addTo(mapRef.current);
+        setOriginMarker(newMarker);
+      }
+
+      setOrigin(`${position.coords.latitude}, ${position.coords.longitude}`);
       toast({
         title: 'GPS Activé',
         description: 'Votre position a été déterminée.',
