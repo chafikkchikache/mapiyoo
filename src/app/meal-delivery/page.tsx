@@ -3,6 +3,7 @@
 
 import React, {useState, useRef, useEffect} from 'react';
 import 'leaflet/dist/leaflet.css';
+import ReactDOMServer from 'react-dom/server';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Alert, AlertDescription, AlertTitle} from '@/components/ui/alert';
@@ -17,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {Locate, MapPin} from 'lucide-react';
+import {Locate, MapPin, MapPinCheck} from 'lucide-react';
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import type L from 'leaflet'; // Import Leaflet type
 
@@ -32,24 +33,35 @@ const defaultLocation = {
   lng: -118.243683,
 };
 
-// Define a custom red marker icon
-let redIcon: L.Icon | undefined;
-if (typeof window !== 'undefined') {
-  import('leaflet').then(L => {
-    redIcon = new L.Icon({
-      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
+// Function to create Leaflet DivIcon from Lucide React component
+let LRef = React.useRef<typeof L | null>(null); // Keep L reference accessible
+
+const createLucideIcon = (IconComponent: React.ElementType, colorClass = 'text-primary') => {
+  if (!LRef.current) return undefined; // Leaflet not loaded yet
+  const L = LRef.current;
+  const iconHtml = ReactDOMServer.renderToStaticMarkup(
+    // Add a wrapper div to potentially help with styling/sizing if needed
+    React.createElement('div', { style: { display: 'inline-block', position: 'relative', bottom: '-5px' /* Adjust vertical alignment */ } },
+      React.createElement(IconComponent, { className: `h-6 w-6 ${colorClass}` })
+    )
+  );
+  return L.divIcon({
+    html: iconHtml,
+    className: 'leaflet-lucide-icon', // Custom class to potentially remove default styles
+    iconSize: [24, 24], // Match h-6 w-6
+    iconAnchor: [12, 24], // Anchor point (bottom center)
+    popupAnchor: [0, -24] // Popup position relative to anchor
   });
-}
+};
+
+// Define custom icons (will be initialized after Leaflet loads)
+let originIcon: L.DivIcon | undefined;
+let destinationIcon: L.DivIcon | undefined;
+let currentPositionIcon: L.DivIcon | undefined; // Specific icon for GPS location
 
 // Reverse Geocoding function using Nominatim
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fr`; // Added language preference
+async function reverseGeocode(lat: number, lng: number): Promise<{ lat: number; lng: number; displayName: string } | null> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fr`;
   try {
     const response = await fetch(url);
     if (!response.ok) {
@@ -57,16 +69,46 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
     }
     const data = await response.json();
     if (data && data.display_name) {
-      // Return address and coordinates
-      return `${data.display_name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+      return {
+        lat: lat,
+        lng: lng,
+        displayName: data.display_name,
+      };
     } else {
-      // Fallback to coordinates if address not found
-       return `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+       // Fallback if address not found
+       const coordsStr = `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+       return { lat: lat, lng: lng, displayName: coordsStr };
     }
   } catch (error) {
     console.error('Reverse geocoding failed:', error);
-    // Fallback to coordinates on error
-    return `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    // Fallback on error
+    const coordsStr = `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    return { lat: lat, lng: lng, displayName: coordsStr };
+  }
+}
+
+// Geocoding function using Nominatim search
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; displayName: string } | null> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=fr&countrycodes=fr,ma`; // Limit search, prioritize FR/MA
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Nominatim error: ${response.status}`);
+    }
+    const data = await response.json();
+    if (data && data.length > 0) {
+      const result = data[0];
+      return {
+        lat: parseFloat(result.lat),
+        lng: parseFloat(result.lon),
+        displayName: result.display_name,
+      };
+    } else {
+      return null; // Address not found
+    }
+  } catch (error) {
+    console.error('Geocoding failed:', error);
+    return null;
   }
 }
 
@@ -85,8 +127,7 @@ const MealDeliveryPage = () => {
   const [originMarker, setOriginMarker] = useState<L.Marker | null>(null);
   const [destinationMarker, setDestinationMarker] = useState<L.Marker | null>(null);
   const [routeLine, setRouteLine] = useState<L.GeoJSON | null>(null);
-  const [clickCount, setClickCount] = useState(0);
-  const LRef = useRef<typeof L | null>(null);
+  const [clickMode, setClickMode] = useState<'origin' | 'destination' | 'none'>('origin'); // Track next map click target
 
 
   useEffect(() => {
@@ -95,31 +136,24 @@ const MealDeliveryPage = () => {
 
       try {
         const L = (await import('leaflet')).default;
-        LRef.current = L;
+        LRef.current = L; // Store L reference
+
+        // Initialize icons *after* L is loaded
+        originIcon = createLucideIcon(MapPin, 'text-blue-600'); // Blue for origin
+        destinationIcon = createLucideIcon(MapPinCheck, 'text-green-600'); // Green for destination
+        currentPositionIcon = createLucideIcon(Locate, 'text-red-600'); // Red for GPS
 
         const mapElement = document.getElementById('map');
         if (!mapElement || mapRef.current) return;
-
-        // Ensure the red icon is loaded before creating the map or markers that might use it
-        if (!redIcon) {
-          redIcon = new L.Icon({
-              iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-red.png',
-              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-              iconSize: [25, 41],
-              iconAnchor: [12, 41],
-              popupAnchor: [1, -34],
-              shadowSize: [41, 41]
-            });
-        }
 
 
         const map = L.map(mapElement, {
           center: [defaultLocation.lat, defaultLocation.lng],
           zoom: 10,
           doubleClickZoom: false,
-          closePopupOnClick: false, // Keep popups open on map click
-          crs: L.CRS.EPSG3857, // Standard web mapping projection
-          attributionControl: false, // Hide default attribution
+          closePopupOnClick: true, // Allow popups to close normally
+          crs: L.CRS.EPSG3857,
+          attributionControl: false,
         });
 
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -127,21 +161,16 @@ const MealDeliveryPage = () => {
           attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
 
-        // Add attribution control separately if needed
         L.control.attribution({ position: 'bottomright', prefix: '' }).addTo(map);
 
         mapRef.current = map;
         setMapLoaded(true);
 
-        // Set map cursor style
         (map.getContainer()).style.cursor = 'crosshair';
 
+        map.on('click', handleMapClick);
 
-        map.on('click', handleMapClick); // Use named function
-
-        // Check initial GPS permission status silently, don't automatically get location
-        checkGpsPermission(false); // Pass false to not get location initially
-
+        checkGpsPermission(false);
 
       } catch (error) {
         console.error('Failed to load Leaflet or initialize map:', error);
@@ -160,12 +189,13 @@ const MealDeliveryPage = () => {
         mapRef.current.remove();
         mapRef.current = null;
       }
+      LRef.current = null; // Clean up L reference
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]); // Removed handleMapClick from dependencies to avoid re-renders
+  }, [toast]);
 
 
-  const checkGpsPermission = async (getLocationOnGrant = false) => { // Added parameter
+  const checkGpsPermission = async (getLocationOnGrant = false) => {
       if (!navigator.geolocation) {
           setHasGpsPermission(false);
           return;
@@ -173,17 +203,17 @@ const MealDeliveryPage = () => {
        try {
            const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
            setHasGpsPermission(permissionStatus.state === 'granted');
-           // Only get location if permission granted AND requested
            if (permissionStatus.state === 'granted' && getLocationOnGrant) {
                 await getCurrentLocationAndSetOrigin();
            }
            permissionStatus.onchange = () => {
                const granted = permissionStatus.state === 'granted';
                setHasGpsPermission(granted);
-                if (granted && getLocationOnGrant) { // Check flag again
+                if (granted && getLocationOnGrant) {
                     getCurrentLocationAndSetOrigin();
                 } else if (!granted) {
                     setCurrentLocation(null);
+                    // Maybe remove the current location marker if it exists
                 }
            };
        } catch (error) {
@@ -193,10 +223,9 @@ const MealDeliveryPage = () => {
    };
 
   const getCurrentLocationAndSetOrigin = async () => {
-    if (!LRef.current || !mapRef.current || !redIcon) return; // Ensure redIcon is loaded
+    if (!LRef.current || !mapRef.current || !currentPositionIcon) return;
     const L = LRef.current;
 
-    // Reset click count if GPS is used for origin
     resetMapStateForNewOrigin(); // Clear existing markers/route
 
     try {
@@ -214,19 +243,21 @@ const MealDeliveryPage = () => {
       setCurrentLocation(coords);
       setHasGpsPermission(true);
 
-      // Add new red marker for current location
-      const newMarker = L.marker([coords.lat, coords.lng], { icon: redIcon }).addTo(mapRef.current).bindPopup("Votre Position Actuelle").openPopup();
-      setOriginMarker(newMarker);
+      // Add new marker for current location using the specific icon
+      const newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(mapRef.current);
+      setOriginMarker(newMarker); // Still consider it the origin
 
-      // Get address from coordinates and update state/input
-      const address = await reverseGeocode(coords.lat, coords.lng);
+      const geocodeResult = await reverseGeocode(coords.lat, coords.lng);
+      const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+      newMarker.bindPopup(`Départ (Actuel): ${address.split(',')[0]}`).openPopup(); // Use simple popup
+
       setOrigin(address);
       if (originInputRef.current) {
         originInputRef.current.value = address;
       }
 
       mapRef.current.setView([coords.lat, coords.lng], 15);
-      setClickCount(1); // Set click count to 1, indicating origin is set
+      setClickMode('destination'); // Next click sets destination
 
       toast({
         title: 'Position Actuelle Définie',
@@ -259,7 +290,7 @@ const MealDeliveryPage = () => {
        toast({
         variant: 'destructive',
         title: 'Information Manquante',
-        description: 'Veuillez définir un point de départ et de destination sur la carte.',
+        description: 'Veuillez définir un point de départ et de destination sur la carte ou via la recherche.',
       });
       return;
     }
@@ -270,7 +301,6 @@ const MealDeliveryPage = () => {
 
 
     try {
-      // Use OSRM routing service
       const response = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${originCoords.lng},${originCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?geometries=geojson&overview=full`
       );
@@ -291,7 +321,7 @@ const MealDeliveryPage = () => {
         }
 
         const newRouteLine = L.geoJSON(geoJson, {
-          style: {color: 'hsl(var(--primary))', weight: 5}, // Use primary color from theme
+          style: {color: 'hsl(var(--primary))', weight: 5},
         }).addTo(mapRef.current);
 
         newRouteLine.bindPopup(`Distance: ${distanceKm} km`).openPopup();
@@ -299,7 +329,6 @@ const MealDeliveryPage = () => {
 
         mapRef.current.fitBounds(newRouteLine.getBounds());
 
-        // Close individual marker popups when route is shown
         originMarker.closePopup();
         destinationMarker.closePopup();
 
@@ -327,6 +356,14 @@ const MealDeliveryPage = () => {
          block: 'center',
        });
        ref.current.focus();
+       // Set click mode based on which input was scrolled to
+       if (ref === originInputRef) {
+           setClickMode('origin');
+           toast({ title: "Mode Sélection Activé", description: "Cliquez sur la carte pour définir le point de départ." });
+       } else if (ref === destinationInputRef) {
+           setClickMode('destination');
+           toast({ title: "Mode Sélection Activé", description: "Cliquez sur la carte pour définir le point de destination." });
+       }
      }
    };
 
@@ -339,19 +376,16 @@ const MealDeliveryPage = () => {
     if (hasGpsPermission === false) {
       setIsGpsDialogOpen(true);
     } else if (hasGpsPermission === true) {
-       await getCurrentLocationAndSetOrigin(); // Directly get location if permission granted
+       await getCurrentLocationAndSetOrigin();
     } else {
-       // Check permission and then decide
-       await checkGpsPermission(true); // Pass true to get location if granted
-       // If permission becomes false after check, the dialog will be handled by checkGpsPermission's logic or subsequent clicks
+       await checkGpsPermission(true);
         if (navigator.permissions) {
              const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
              if (permissionStatus.state !== 'granted') {
-                 setIsGpsDialogOpen(true); // Show dialog if still not granted
+                 setIsGpsDialogOpen(true); // Show dialog if still not granted after check
              }
          } else {
-             // Fallback if permissions API not supported (less likely)
-             setIsGpsDialogOpen(true);
+             setIsGpsDialogOpen(true); // Fallback if permissions API not supported
          }
     }
   };
@@ -368,93 +402,145 @@ const MealDeliveryPage = () => {
      }
    };
 
-  // Clears markers and route, preparing for new origin selection
    const resetMapStateForNewOrigin = () => {
         if (!mapRef.current) return;
         if (originMarker) mapRef.current.removeLayer(originMarker);
         if (destinationMarker) mapRef.current.removeLayer(destinationMarker);
         if (routeLine) mapRef.current.removeLayer(routeLine);
 
-        setOrigin('');
-        setDestination('');
-        if (originInputRef.current) originInputRef.current.value = '';
-        if (destinationInputRef.current) destinationInputRef.current.value = '';
         setOriginMarker(null);
         setDestinationMarker(null);
         setRouteLine(null);
-        // Don't reset currentLocation or hasGpsPermission here
-        setClickCount(0); // Reset click count
+        setClickMode('origin'); // Default back to setting origin
     };
 
+    const resetFullMap = () => {
+        if (mapRef.current && LRef.current) {
+           resetMapStateForNewOrigin();
+           setOrigin('');
+           setDestination('');
+           if (originInputRef.current) originInputRef.current.value = '';
+           if (destinationInputRef.current) destinationInputRef.current.value = '';
+           // Optionally reset GPS state
+           // setCurrentLocation(null);
+           // setHasGpsPermission(null);
+           mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
+           toast({ title: 'Carte Réinitialisée' });
+        }
+      };
+
+
    const handleMapClick = async (e: L.LeafletMouseEvent) => {
-     if (!mapLoaded || !LRef.current || !mapRef.current) {
-       toast({ variant: 'destructive', title: 'Carte non prête' });
+     if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') {
+       if (clickMode === 'none') {
+            toast({ variant: 'destructive', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône près d'un champ d'adresse pour activer la sélection sur carte." });
+       } else {
+            toast({ variant: 'destructive', title: 'Carte non prête' });
+       }
        return;
      }
 
      const L = LRef.current;
      const latLng = e.latlng;
-     const address = await reverseGeocode(latLng.lat, latLng.lng); // Get address
+     const geocodeResult = await reverseGeocode(latLng.lat, latLng.lng);
+     const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`;
 
-     if (clickCount === 0) {
-       // Set Origin
-       resetMapStateForNewOrigin(); // Clear previous state before setting new origin
-
-       setOrigin(address);
-       if (originInputRef.current) originInputRef.current.value = address;
-
-       const newOriginMarker = L.marker([latLng.lat, latLng.lng])
-         .addTo(mapRef.current)
-         .bindPopup(`Départ: ${address.split('(')[0]}`) // Show only address part in popup initially
-         .openPopup();
-       setOriginMarker(newOriginMarker);
-
-       setClickCount(1);
-     } else if (clickCount === 1) {
-       // Set Destination
-       setDestination(address); // Update state for destination
-       if (destinationInputRef.current) { // Check if ref exists
-         destinationInputRef.current.value = address; // Update input field value
-       }
-
-       if (destinationMarker) {
-         mapRef.current.removeLayer(destinationMarker);
-       }
-       const newDestinationMarker = L.marker([latLng.lat, latLng.lng])
-         .addTo(mapRef.current)
-         .bindPopup(`Destination: ${address.split('(')[0]}`) // Show only address part in popup initially
-         .openPopup();
-       setDestinationMarker(newDestinationMarker);
-
-        if (routeLine) { // Remove old route if destination is changed
+     if (clickMode === 'origin' && originIcon) {
+        if (originMarker) mapRef.current.removeLayer(originMarker); // Remove previous origin marker
+        if (routeLine) { // Remove route if origin changes
             mapRef.current.removeLayer(routeLine);
             setRouteLine(null);
         }
 
+        setOrigin(address);
+        if (originInputRef.current) originInputRef.current.value = address;
 
-       setClickCount(2);
-     } else {
-       // Reset if clicked again after destination is set
-        resetMap();
-        // Need to re-trigger the first click after reset
-        // Calling handleMapClick directly after reset to simulate the first click again
-         await handleMapClick(e);
+        const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
+         .addTo(mapRef.current)
+         .bindPopup(`Départ: ${address.split(',')[0]}`)
+         .openPopup();
+       setOriginMarker(newOriginMarker);
 
+       setClickMode('destination'); // Next click sets destination
+     } else if (clickMode === 'destination' && destinationIcon) {
+        if (destinationMarker) mapRef.current.removeLayer(destinationMarker); // Remove previous destination marker
+         if (routeLine) { // Remove route if destination changes
+            mapRef.current.removeLayer(routeLine);
+            setRouteLine(null);
+        }
 
+       setDestination(address);
+       if (destinationInputRef.current) destinationInputRef.current.value = address;
+
+       const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
+         .addTo(mapRef.current)
+         .bindPopup(`Destination: ${address.split(',')[0]}`)
+         .openPopup();
+       setDestinationMarker(newDestinationMarker);
+
+       setClickMode('none'); // Deactivate map clicking after destination is set
      }
    };
 
+   const handleAddressSearch = async (type: 'origin' | 'destination') => {
+      if (!mapRef.current || !LRef.current) return;
+      const L = LRef.current;
+      const address = type === 'origin' ? origin : destination;
 
-  const resetMap = () => {
-    if (mapRef.current && LRef.current) {
-       resetMapStateForNewOrigin(); // Use the clearing function
-       // Optionally reset GPS state if desired
-       // setCurrentLocation(null);
-       // setHasGpsPermission(null); // Or false depending on desired behavior
-       mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
-       toast({ title: 'Carte Réinitialisée' });
-    }
-  };
+      if (!address || address.trim().length < 3) { // Basic validation
+          toast({ variant: 'destructive', title: 'Recherche invalide', description: 'Veuillez entrer une adresse plus complète.' });
+          return;
+      }
+
+      const result = await geocodeAddress(address);
+
+      if (result) {
+          const { lat, lng, displayName } = result;
+          const icon = type === 'origin' ? originIcon : destinationIcon;
+          let markerRef = type === 'origin' ? originMarker : destinationMarker;
+          const setMarker = type === 'origin' ? setOriginMarker : setDestinationMarker;
+          const setAddressState = type === 'origin' ? setOrigin : setDestination;
+          const inputRef = type === 'origin' ? originInputRef : destinationInputRef;
+
+          if (!icon) {
+             toast({ variant: 'destructive', title: 'Erreur Icone', description: "L'icône de la carte n'a pas pu être chargée." });
+             return;
+          }
+
+          if (markerRef) {
+              mapRef.current.removeLayer(markerRef);
+          }
+           if (routeLine) { // Remove route if address changes via search
+              mapRef.current.removeLayer(routeLine);
+              setRouteLine(null);
+          }
+
+          const newMarker = L.marker([lat, lng], { icon: icon })
+              .addTo(mapRef.current)
+              .bindPopup(`${type === 'origin' ? 'Départ' : 'Destination'}: ${displayName.split(',')[0]}`)
+              .openPopup();
+
+          setMarker(newMarker);
+          setAddressState(displayName); // Update state with full address from search
+          if (inputRef.current) {
+              inputRef.current.value = displayName; // Update input field
+          }
+
+          mapRef.current.setView([lat, lng], 15); // Center map on the result
+
+          // Set click mode based on what was just set
+          if (type === 'origin') {
+              setClickMode('destination');
+          } else {
+              setClickMode('none'); // Deactivate after destination search
+          }
+
+          toast({ title: 'Adresse Trouvée', description: displayName });
+      } else {
+          toast({ variant: 'destructive', title: 'Adresse Non Trouvée', description: 'Impossible de localiser cette adresse. Essayez différemment.' });
+      }
+   };
+
 
 
   return (
@@ -462,6 +548,14 @@ const MealDeliveryPage = () => {
       <div>
         {/* The map container */}
         <div id="map" style={mapContainerStyle} className="rounded-md shadow-md mb-4" />
+
+        {/* Add CSS for leaflet-lucide-icon to prevent default Leaflet icon background/border */}
+        <style jsx global>{`
+          .leaflet-lucide-icon {
+            background: none !important;
+            border: none !important;
+          }
+        `}</style>
 
         <div className="container mx-auto p-4">
           <h1 className="text-2xl font-semibold mb-4 text-center md:text-left">Snack et Restauration</h1>
@@ -478,15 +572,30 @@ const MealDeliveryPage = () => {
                   <Input
                     id="origin"
                     type="text"
-                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20"
-                    placeholder="Cliquer sur la carte ou utiliser GPS"
-                    value={origin} // Controlled component
-                    onChange={(e) => setOrigin(e.target.value)} // Allow manual input if needed
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-32" // Increased padding-right
+                    placeholder="Entrer l'adresse ou cliquer sur la carte"
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value)}
                     ref={originInputRef}
-                    readOnly // Make read-only if address comes only from map/GPS
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch('origin')}
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center py-1.5 pr-1.5 space-x-1">
                     <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleAddressSearch('origin')}
+                          aria-label="Rechercher l'adresse de ramassage"
+                        >
+                           <Locate className="h-5 w-5 text-gray-500" /> {/* Search icon ? maybe Locate is okay */}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Rechercher l'adresse entrée
+                      </TooltipContent>
+                    </Tooltip>
+                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
@@ -498,7 +607,7 @@ const MealDeliveryPage = () => {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Choisir l’adresse de ramassage sur la carte (1er clic)
+                        Choisir l’adresse de ramassage sur la carte ({clickMode === 'origin' ? 'Actif' : 'Inactif'})
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -529,14 +638,29 @@ const MealDeliveryPage = () => {
                   <Input
                     id="destination"
                     type="text"
-                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10"
-                    placeholder="Cliquer sur la carte"
-                    value={destination} // Controlled component
-                    onChange={(e) => setDestination(e.target.value)} // Allow manual input if needed
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20" // Increased padding-right
+                    placeholder="Entrer l'adresse ou cliquer sur la carte"
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
                     ref={destinationInputRef}
-                    readOnly // Make read-only if address comes only from map
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch('destination')}
                   />
-                   <div className="absolute inset-y-0 right-0 flex items-center py-1.5 pr-1.5">
+                   <div className="absolute inset-y-0 right-0 flex items-center py-1.5 pr-1.5 space-x-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleAddressSearch('destination')}
+                          aria-label="Rechercher l'adresse de destination"
+                        >
+                           <Locate className="h-5 w-5 text-gray-500" /> {/* Search icon ? maybe Locate is okay */}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Rechercher l'adresse entrée
+                      </TooltipContent>
+                    </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
                          <Button
@@ -549,7 +673,7 @@ const MealDeliveryPage = () => {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                         Choisir l’adresse de destination sur la carte (2ème clic)
+                         Choisir l’adresse de destination sur la carte ({clickMode === 'destination' ? 'Actif' : 'Inactif'})
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -558,17 +682,16 @@ const MealDeliveryPage = () => {
 
                {/* Action Buttons */}
                <div className="flex gap-2 flex-wrap">
-                 {/* Enable Calculate Route only when both markers are set */}
                 <Button onClick={calculateRoute} disabled={!originMarker || !destinationMarker || !!routeLine}>
                   Calculer la Route
                 </Button>
-                <Button onClick={resetMap} variant="secondary">Réinitialiser</Button>
+                <Button onClick={resetFullMap} variant="secondary">Réinitialiser</Button>
               </div>
             </div>
 
             {/* Right side: GPS Alert */}
             <div className="w-full md:w-1/2 mt-4 md:mt-0">
-              {hasGpsPermission === false && ( // Show only if permission explicitly denied or unavailable
+              {hasGpsPermission === false && (
                 <Alert variant="destructive">
                   <AlertTitle>Accès GPS Refusé/Indisponible</AlertTitle>
                   <AlertDescription>
@@ -576,11 +699,11 @@ const MealDeliveryPage = () => {
                      <Button variant="link" className="p-0 h-auto ml-1" onClick={() => setIsGpsDialogOpen(true)}>
                         réessayer
                     </Button>
-                    . Vous pouvez aussi définir le point de départ manuellement sur la carte.
+                    . Vous pouvez aussi définir le point de départ manuellement.
                   </AlertDescription>
                 </Alert>
               )}
-               {hasGpsPermission === null && ( // Show initial checking state
+               {hasGpsPermission === null && (
                  <Alert>
                      <AlertTitle>Vérification GPS</AlertTitle>
                      <AlertDescription>
@@ -591,7 +714,7 @@ const MealDeliveryPage = () => {
                      </AlertDescription>
                  </Alert>
                 )}
-                {/* You might want an alert for when permission is granted but location is being fetched */}
+                {/* Optional: Alert for loading GPS location after permission */}
                 {/* {hasGpsPermission === true && currentLocation === null && <Alert>...</Alert>} */}
             </div>
           </div>
