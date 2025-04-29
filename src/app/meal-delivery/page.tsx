@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, {useState, useRef, useEffect} from 'react';
@@ -15,7 +16,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {Locate, MapPin} from 'lucide-react';
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
@@ -24,6 +24,7 @@ import type L from 'leaflet'; // Import Leaflet type
 const mapContainerStyle = {
   width: '100%',
   height: '400px',
+  cursor: 'crosshair' // Change cursor to crosshair for map clicks
 };
 
 const defaultLocation = {
@@ -31,9 +32,9 @@ const defaultLocation = {
   lng: -118.243683,
 };
 
-// Define a custom red marker icon
+// Define a custom red marker icon (remains unchanged)
 let redIcon: L.Icon | undefined;
-if (typeof window !== 'undefined') { // Check if window is defined (client-side)
+if (typeof window !== 'undefined') {
   import('leaflet').then(L => {
     redIcon = new L.Icon({
       iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-red.png',
@@ -46,12 +47,35 @@ if (typeof window !== 'undefined') { // Check if window is defined (client-side)
   });
 }
 
+// Reverse Geocoding function using Nominatim
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fr`; // Added language preference
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Nominatim error: ${response.status}`);
+    }
+    const data = await response.json();
+    if (data && data.display_name) {
+      // Return address and coordinates
+      return `${data.display_name} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+    } else {
+      // Fallback to coordinates if address not found
+       return `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+  } catch (error) {
+    console.error('Reverse geocoding failed:', error);
+    // Fallback to coordinates on error
+    return `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+}
+
 
 const MealDeliveryPage = () => {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
-  const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null); // Use null to represent initial state
+  const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
@@ -62,46 +86,54 @@ const MealDeliveryPage = () => {
   const [destinationMarker, setDestinationMarker] = useState<L.Marker | null>(null);
   const [routeLine, setRouteLine] = useState<L.GeoJSON | null>(null);
   const [clickCount, setClickCount] = useState(0);
-  const LRef = useRef<typeof L | null>(null); // Ref to store Leaflet instance
+  const LRef = useRef<typeof L | null>(null);
 
 
-  // Initialize Leaflet dynamically on the client-side
   useEffect(() => {
     const initializeMap = async () => {
-      if (typeof window === 'undefined' || LRef.current) return; // Ensure it runs only on client and only once
+      if (typeof window === 'undefined' || LRef.current) return;
 
       try {
         const L = (await import('leaflet')).default;
-        LRef.current = L; // Store Leaflet instance
+        LRef.current = L;
 
-        // Check if the map container exists
         const mapElement = document.getElementById('map');
-        if (!mapElement || mapRef.current) return; // Exit if container not found or map already initialized
+        if (!mapElement || mapRef.current) return;
+
+        // Ensure the red icon is loaded before creating the map or markers that might use it
+        if (!redIcon) {
+          redIcon = new L.Icon({ /* ... icon options ... */ });
+        }
+
 
         const map = L.map(mapElement, {
           center: [defaultLocation.lat, defaultLocation.lng],
           zoom: 10,
           doubleClickZoom: false,
-          closePopupOnClick: false,
-          crs: L.CRS.EPSG3857,
-          attributionControl: false,
+          closePopupOnClick: false, // Keep popups open on map click
+          crs: L.CRS.EPSG3857, // Standard web mapping projection
+          attributionControl: false, // Hide default attribution
         });
 
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          attribution:
-            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
+
+        // Add attribution control separately if needed
+        L.control.attribution({ position: 'bottomright', prefix: '' }).addTo(map);
 
         mapRef.current = map;
         setMapLoaded(true);
 
-        map.on('click', (e: L.LeafletMouseEvent) => {
-           handleMapClick(e);
-        });
+        // Set map cursor style
+        (map.getContainer()).style.cursor = 'crosshair';
 
-        // Attempt to get initial GPS permission status
-        checkGpsPermission();
+
+        map.on('click', handleMapClick); // Use named function
+
+        // Check initial GPS permission status silently, don't automatically get location
+        checkGpsPermission(false); // Pass false to not get location initially
 
 
       } catch (error) {
@@ -116,18 +148,17 @@ const MealDeliveryPage = () => {
 
     initializeMap();
 
-    // Cleanup function to remove the map instance
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
-        mapRef.current = null; // Ensure the ref is cleared
+        mapRef.current = null;
       }
     };
-  }, [toast]); // Added toast to dependencies
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]); // Removed handleMapClick from dependencies to avoid re-renders
 
 
-  // Check initial GPS permission state
-  const checkGpsPermission = async () => {
+  const checkGpsPermission = async (getLocationOnGrant = false) => { // Added parameter
       if (!navigator.geolocation) {
           setHasGpsPermission(false);
           return;
@@ -135,27 +166,31 @@ const MealDeliveryPage = () => {
        try {
            const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
            setHasGpsPermission(permissionStatus.state === 'granted');
-           if (permissionStatus.state === 'granted') {
-                getCurrentLocationAndSetOrigin(); // Get location if permission already granted
+           // Only get location if permission granted AND requested
+           if (permissionStatus.state === 'granted' && getLocationOnGrant) {
+                await getCurrentLocationAndSetOrigin();
            }
            permissionStatus.onchange = () => {
-               setHasGpsPermission(permissionStatus.state === 'granted');
-                if (permissionStatus.state === 'granted') {
+               const granted = permissionStatus.state === 'granted';
+               setHasGpsPermission(granted);
+                if (granted && getLocationOnGrant) { // Check flag again
                     getCurrentLocationAndSetOrigin();
-                } else {
-                    setCurrentLocation(null); // Clear location if permission revoked
+                } else if (!granted) {
+                    setCurrentLocation(null);
                 }
            };
        } catch (error) {
            console.error("Error checking GPS permission:", error);
-           setHasGpsPermission(false); // Assume no permission if query fails
+           setHasGpsPermission(false);
        }
    };
 
-  // Get current location and update map/origin state
   const getCurrentLocationAndSetOrigin = async () => {
     if (!LRef.current || !mapRef.current) return;
     const L = LRef.current;
+
+    // Reset click count if GPS is used for origin
+    resetMapStateForNewOrigin(); // Clear existing markers/route
 
     try {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -170,31 +205,21 @@ const MealDeliveryPage = () => {
         lng: position.coords.longitude,
       };
       setCurrentLocation(coords);
-      setHasGpsPermission(true); // Explicitly set to true after successful retrieval
-
-      // Clear previous origin marker if it exists
-      if (originMarker) {
-        mapRef.current.removeLayer(originMarker);
-      }
+      setHasGpsPermission(true);
 
       // Add new red marker for current location
-      const newMarker = L.marker([coords.lat, coords.lng], { icon: redIcon }).addTo(mapRef.current).bindPopup("Votre Position").openPopup();
+      const newMarker = L.marker([coords.lat, coords.lng], { icon: redIcon }).addTo(mapRef.current).bindPopup("Votre Position Actuelle").openPopup();
       setOriginMarker(newMarker);
 
-      // Update origin state and input field
-      const originString = `${coords.lat}, ${coords.lng}`;
-      setOrigin(originString);
+      // Get address from coordinates and update state/input
+      const address = await reverseGeocode(coords.lat, coords.lng);
+      setOrigin(address);
       if (originInputRef.current) {
-        originInputRef.current.value = originString;
+        originInputRef.current.value = address;
       }
 
-      // Center map on the current location
       mapRef.current.setView([coords.lat, coords.lng], 15);
-
-      // Ensure click count is updated correctly if this is the first point
-       if (clickCount === 0 && !destination) {
-            setClickCount(1);
-        }
+      setClickCount(1); // Set click count to 1, indicating origin is set
 
       toast({
         title: 'Position Actuelle Définie',
@@ -203,13 +228,11 @@ const MealDeliveryPage = () => {
 
     } catch (error: any) {
       console.error('Error accessing GPS location:', error);
-       setHasGpsPermission(false); // Set to false on error
+       setHasGpsPermission(false);
        setCurrentLocation(null);
       let description = 'Une erreur s’est produite lors de la récupération de votre position.';
        if (error.code === error.PERMISSION_DENIED) {
            description = 'Veuillez autoriser l’accès GPS dans les paramètres de votre navigateur.';
-           // Optionally, trigger the dialog again or guide the user
-           // setIsGpsDialogOpen(true); // Or provide other instructions
        } else if (error.code === error.POSITION_UNAVAILABLE) {
            description = 'Votre position actuelle n’est pas disponible.';
        } else if (error.code === error.TIMEOUT) {
@@ -224,38 +247,25 @@ const MealDeliveryPage = () => {
   };
 
 
-
   const calculateRoute = async () => {
-    if (!LRef.current || !mapRef.current) return;
-    const L = LRef.current;
-
-    if (origin === '' || destination === '') {
-      toast({
+    if (!LRef.current || !mapRef.current || !originMarker || !destinationMarker) {
+       toast({
         variant: 'destructive',
         title: 'Information Manquante',
-        description:
-          'Veuillez entrer les adresses de départ et de destination.',
+        description: 'Veuillez définir un point de départ et de destination sur la carte.',
       });
       return;
     }
+    const L = LRef.current;
+
+    const originCoords = originMarker.getLatLng();
+    const destinationCoords = destinationMarker.getLatLng();
+
 
     try {
-      const originCoords = origin.split(',').map(Number);
-      const destinationCoords = destination.split(',').map(Number);
-
-       if (originCoords.length !== 2 || destinationCoords.length !== 2 || originCoords.some(isNaN) || destinationCoords.some(isNaN)) {
-            toast({
-                variant: 'destructive',
-                title: 'Coordonnées Invalides',
-                description: 'Veuillez entrer des coordonnées valides (latitude, longitude).',
-            });
-            return;
-        }
-
-
       // Use OSRM routing service
       const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${originCoords[1]},${originCoords[0]};${destinationCoords[1]},${destinationCoords[0]}?geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${originCoords.lng},${originCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?geometries=geojson&overview=full`
       );
 
       if (!response.ok) {
@@ -267,24 +277,24 @@ const MealDeliveryPage = () => {
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         const geoJson = route.geometry;
-        const distanceKm = (route.distance / 1000).toFixed(2); // Distance in km
+        const distanceKm = (route.distance / 1000).toFixed(2);
 
         if (routeLine) {
           mapRef.current.removeLayer(routeLine);
         }
 
         const newRouteLine = L.geoJSON(geoJson, {
-          style: {color: 'blue', weight: 5}, // Make line thicker
+          style: {color: 'hsl(var(--primary))', weight: 5}, // Use primary color from theme
         }).addTo(mapRef.current);
 
-        // Add distance popup to the route line
-         newRouteLine.bindPopup(`Distance: ${distanceKm} km`).openPopup();
-
-
+        newRouteLine.bindPopup(`Distance: ${distanceKm} km`).openPopup();
         setRouteLine(newRouteLine);
 
-         // Fit map bounds to the route
-         mapRef.current.fitBounds(newRouteLine.getBounds());
+        mapRef.current.fitBounds(newRouteLine.getBounds());
+
+        // Close individual marker popups when route is shown
+        originMarker.closePopup();
+        destinationMarker.closePopup();
 
       } else {
         toast({
@@ -298,64 +308,51 @@ const MealDeliveryPage = () => {
       toast({
         variant: 'destructive',
         title: 'Erreur de calcul d’itinéraire',
-        description: `Une erreur s’est produite lors du calcul de l’itinéraire: ${error.message}`,
+        description: `Une erreur s’est produite lors du calcul de l’itinéraire.`,
       });
     }
   };
 
-  // Scroll to the input field when map icon is clicked
-   const handleScrollToInput = (ref: React.RefObject<HTMLInputElement>) => {
+  const handleScrollToInput = (ref: React.RefObject<HTMLInputElement>) => {
      if (ref.current) {
        ref.current.scrollIntoView({
          behavior: 'smooth',
-         block: 'center', // Scrolls the element to the center of the view
+         block: 'center',
        });
-       ref.current.focus(); // Focus the input field
+       ref.current.focus();
      }
    };
 
-
-  // Handle click on the "Use Current Location" button
   const handleUseCurrentLocation = async () => {
      if (!mapLoaded || !LRef.current || !mapRef.current) {
-      toast({
-        variant: 'destructive',
-        title: 'Carte non prête',
-        description: 'Veuillez attendre que la carte soit complètement chargée et initialisée.',
-      });
+      toast({ variant: 'destructive', title: 'Carte non prête' });
       return;
     }
 
     if (hasGpsPermission === false) {
-      // If permission is known to be denied or not determined, show dialog
       setIsGpsDialogOpen(true);
     } else if (hasGpsPermission === true) {
-      // If permission is granted, get location
-       await getCurrentLocationAndSetOrigin();
+       await getCurrentLocationAndSetOrigin(); // Directly get location if permission granted
     } else {
-       // If permission status is unknown (null), try to get it
-        checkGpsPermission().then(() => {
-            // After checking, decide whether to show dialog or get location
-            if (hasGpsPermission === false) {
-                setIsGpsDialogOpen(true);
-            } else if (hasGpsPermission === true) {
-                getCurrentLocationAndSetOrigin();
-            }
-        });
+       // Check permission and then decide
+       await checkGpsPermission(true); // Pass true to get location if granted
+       // If permission becomes false after check, the dialog will be handled by checkGpsPermission's logic or subsequent clicks
+        if (navigator.permissions) {
+             const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+             if (permissionStatus.state !== 'granted') {
+                 setIsGpsDialogOpen(true); // Show dialog if still not granted
+             }
+         } else {
+             // Fallback if permissions API not supported (less likely)
+             setIsGpsDialogOpen(true);
+         }
     }
-
   };
 
-   // Handle action from the GPS permission dialog
    const handleGpsDialogAction = async (allow: boolean) => {
      setIsGpsDialogOpen(false);
      if (allow) {
-       try {
-         // Request permission and get location
-         await getCurrentLocationAndSetOrigin();
-       } catch (error) {
-         // Error handled within getCurrentLocationAndSetOrigin
-       }
+       await getCurrentLocationAndSetOrigin();
      } else {
        toast({
          title: 'GPS Non Activé',
@@ -364,100 +361,100 @@ const MealDeliveryPage = () => {
      }
    };
 
-  // Handle clicks on the map to set origin and destination markers
-  const handleMapClick = async (e: L.LeafletMouseEvent) => {
+  // Clears markers and route, preparing for new origin selection
+   const resetMapStateForNewOrigin = () => {
+        if (!mapRef.current) return;
+        if (originMarker) mapRef.current.removeLayer(originMarker);
+        if (destinationMarker) mapRef.current.removeLayer(destinationMarker);
+        if (routeLine) mapRef.current.removeLayer(routeLine);
+
+        setOrigin('');
+        setDestination('');
+        if (originInputRef.current) originInputRef.current.value = '';
+        if (destinationInputRef.current) destinationInputRef.current.value = '';
+        setOriginMarker(null);
+        setDestinationMarker(null);
+        setRouteLine(null);
+        // Don't reset currentLocation or hasGpsPermission here
+        setClickCount(0); // Reset click count
+    };
+
+   const handleMapClick = async (e: L.LeafletMouseEvent) => {
      if (!mapLoaded || !LRef.current || !mapRef.current) {
-       toast({
-         variant: 'destructive',
-         title: 'Carte non prête',
-         description: 'Veuillez attendre que la carte soit complètement chargée.',
-       });
+       toast({ variant: 'destructive', title: 'Carte non prête' });
        return;
      }
 
      const L = LRef.current;
      const latLng = e.latlng;
-     const locationString = `${latLng.lat}, ${latLng.lng}`;
+     const address = await reverseGeocode(latLng.lat, latLng.lng); // Get address
 
      if (clickCount === 0) {
        // Set Origin
-       setOrigin(locationString);
-       if (originInputRef.current) {
-         originInputRef.current.value = locationString;
-       }
+       resetMapStateForNewOrigin(); // Clear previous state before setting new origin
 
-       // Remove previous origin marker if exists
-       if (originMarker) {
-         mapRef.current.removeLayer(originMarker);
-       }
-        // Add new origin marker (default icon)
-       const newOriginMarker = L.marker([latLng.lat, latLng.lng]).addTo(mapRef.current).bindPopup("Départ").openPopup();
+       setOrigin(address);
+       if (originInputRef.current) originInputRef.current.value = address;
+
+       const newOriginMarker = L.marker([latLng.lat, latLng.lng])
+         .addTo(mapRef.current)
+         .bindPopup(`Départ: ${address.split('(')[0]}`) // Show only address part in popup initially
+         .openPopup();
        setOriginMarker(newOriginMarker);
 
-       // Clear destination if origin is reset
-       setDestination('');
-        if (destinationInputRef.current) destinationInputRef.current.value = '';
+       setClickCount(1);
+     } else if (clickCount === 1) {
+       // Set Destination
+       setDestination(address);
+       if (destinationInputRef.current) destinationInputRef.current.value = address;
+
        if (destinationMarker) {
          mapRef.current.removeLayer(destinationMarker);
-         setDestinationMarker(null);
        }
-        if (routeLine) {
+       const newDestinationMarker = L.marker([latLng.lat, latLng.lng])
+         .addTo(mapRef.current)
+         .bindPopup(`Destination: ${address.split('(')[0]}`) // Show only address part in popup initially
+         .openPopup();
+       setDestinationMarker(newDestinationMarker);
+
+        if (routeLine) { // Remove old route if destination is changed
             mapRef.current.removeLayer(routeLine);
             setRouteLine(null);
         }
 
 
-       setClickCount(1); // Move to setting destination
-     } else if (clickCount === 1) {
-       // Set Destination
-       setDestination(locationString);
-       if (destinationInputRef.current) {
-         destinationInputRef.current.value = locationString;
-       }
-
-        // Remove previous destination marker if exists
-       if (destinationMarker) {
-         mapRef.current.removeLayer(destinationMarker);
-       }
-        // Add new destination marker (default icon)
-       const newDestinationMarker = L.marker([latLng.lat, latLng.lng]).addTo(mapRef.current).bindPopup("Destination").openPopup();
-       setDestinationMarker(newDestinationMarker);
-
-       setClickCount(2); // Both points set, ready to calculate route
+       setClickCount(2);
      } else {
-        // Allow resetting by clicking again if route is already shown
-       if (routeLine) {
-            resetMap();
-             handleMapClick(e); // Re-trigger click to set the first point again
-       } else {
-            toast({
-                title: 'Points Déjà Sélectionnés',
-                description: 'Cliquez sur "Calculer la Route" ou "Réinitialiser".',
-             });
-        }
+       // Reset if clicked again after destination is set
+        resetMap();
+        // Need to re-trigger the first click after reset
+        const firstClickEvent = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: e.originalEvent.clientX, // Pass necessary event properties
+            clientY: e.originalEvent.clientY,
+            // Add other properties if needed by Leaflet or your logic
+        });
+        // Find the map container and dispatch the event.
+        // Note: This might not work perfectly depending on Leaflet's internal handling.
+        // A more robust way might be to directly call the logic for the first click.
+        // For simplicity, let's call handleMapClick directly after reset:
+         await handleMapClick(e); // Simulate the first click again
+
+
      }
    };
 
 
-  // Reset the map state
   const resetMap = () => {
     if (mapRef.current && LRef.current) {
-      if (originMarker) mapRef.current.removeLayer(originMarker);
-      if (destinationMarker) mapRef.current.removeLayer(destinationMarker);
-      if (routeLine) mapRef.current.removeLayer(routeLine);
-
-      setOrigin('');
-      setDestination('');
-      if (originInputRef.current) originInputRef.current.value = '';
-      if (destinationInputRef.current) destinationInputRef.current.value = '';
-      setOriginMarker(null);
-      setDestinationMarker(null);
-      setRouteLine(null);
-      setClickCount(0);
-      setCurrentLocation(null); // Reset current location as well if needed
-
-      mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10); // Reset map view
-      toast({ title: 'Carte Réinitialisée' });
+       resetMapStateForNewOrigin(); // Use the clearing function
+       // Optionally reset GPS state if desired
+       // setCurrentLocation(null);
+       // setHasGpsPermission(null); // Or false depending on desired behavior
+       mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
+       toast({ title: 'Carte Réinitialisée' });
     }
   };
 
@@ -483,14 +480,14 @@ const MealDeliveryPage = () => {
                   <Input
                     id="origin"
                     type="text"
-                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20" // Increased padding-right
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20"
                     placeholder="Cliquer sur la carte ou utiliser GPS"
-                    value={origin}
-                    onChange={e => setOrigin(e.target.value)}
+                    value={origin} // Controlled component
+                    onChange={(e) => setOrigin(e.target.value)} // Allow manual input if needed
                     ref={originInputRef}
+                    readOnly // Make read-only if address comes only from map/GPS
                   />
-                  <div className="absolute inset-y-0 right-0 flex items-center py-1.5 pr-1.5 space-x-1"> {/* Added space-x-1 */}
-                    {/* Map Pin Icon */}
+                  <div className="absolute inset-y-0 right-0 flex items-center py-1.5 pr-1.5 space-x-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -506,7 +503,6 @@ const MealDeliveryPage = () => {
                         Choisir l’adresse de ramassage sur la carte (1er clic)
                       </TooltipContent>
                     </Tooltip>
-                    {/* GPS Locate Icon */}
                     <Tooltip>
                        <TooltipTrigger asChild>
                         <Button
@@ -519,7 +515,7 @@ const MealDeliveryPage = () => {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {hasGpsPermission ? "Utiliser ma position actuelle" : "Activer et utiliser le GPS"}
+                        {hasGpsPermission ? "Utiliser ma position actuelle (GPS)" : "Activer et utiliser le GPS"}
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -535,11 +531,12 @@ const MealDeliveryPage = () => {
                   <Input
                     id="destination"
                     type="text"
-                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10" // Standard padding-right
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-10"
                     placeholder="Cliquer sur la carte"
-                    value={destination}
-                    onChange={e => setDestination(e.target.value)}
+                    value={destination} // Controlled component
+                    onChange={(e) => setDestination(e.target.value)} // Allow manual input if needed
                     ref={destinationInputRef}
+                    readOnly // Make read-only if address comes only from map
                   />
                    <div className="absolute inset-y-0 right-0 flex items-center py-1.5 pr-1.5">
                     <Tooltip>
@@ -563,18 +560,21 @@ const MealDeliveryPage = () => {
 
                {/* Action Buttons */}
                <div className="flex gap-2 flex-wrap">
-                <Button onClick={calculateRoute} disabled={clickCount !== 2 || !origin || !destination}>Calculer la Route</Button>
+                 {/* Enable Calculate Route only when both markers are set */}
+                <Button onClick={calculateRoute} disabled={!originMarker || !destinationMarker || !!routeLine}>
+                  Calculer la Route
+                </Button>
                 <Button onClick={resetMap} variant="secondary">Réinitialiser</Button>
               </div>
             </div>
 
             {/* Right side: GPS Alert */}
             <div className="w-full md:w-1/2 mt-4 md:mt-0">
-              {hasGpsPermission === false && !currentLocation && ( // Show only if permission denied and no location yet
+              {hasGpsPermission === false && ( // Show only if permission explicitly denied or unavailable
                 <Alert variant="destructive">
-                  <AlertTitle>Accès GPS Refusé</AlertTitle>
+                  <AlertTitle>Accès GPS Refusé/Indisponible</AlertTitle>
                   <AlertDescription>
-                     L'accès GPS est nécessaire pour utiliser votre position actuelle. Vous pouvez l'activer dans les paramètres de votre navigateur ou
+                     L'accès GPS est nécessaire pour utiliser votre position actuelle. Vous pouvez essayer de l'activer dans les paramètres de votre navigateur ou
                      <Button variant="link" className="p-0 h-auto ml-1" onClick={() => setIsGpsDialogOpen(true)}>
                         réessayer
                     </Button>
@@ -582,7 +582,7 @@ const MealDeliveryPage = () => {
                   </AlertDescription>
                 </Alert>
               )}
-               {hasGpsPermission === null && ( // Show loading/prompt state
+               {hasGpsPermission === null && ( // Show initial checking state
                  <Alert>
                      <AlertTitle>Vérification GPS</AlertTitle>
                      <AlertDescription>
@@ -593,6 +593,8 @@ const MealDeliveryPage = () => {
                      </AlertDescription>
                  </Alert>
                 )}
+                {/* You might want an alert for when permission is granted but location is being fetched */}
+                {/* {hasGpsPermission === true && currentLocation === null && <Alert>...</Alert>} */}
             </div>
           </div>
 
@@ -634,5 +636,3 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
-
-    
