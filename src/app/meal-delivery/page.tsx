@@ -32,7 +32,7 @@ const defaultLocation = {
   lng: -118.243683,
 };
 
-// Define a custom red marker icon (remains unchanged)
+// Define a custom red marker icon
 let redIcon: L.Icon | undefined;
 if (typeof window !== 'undefined') {
   import('leaflet').then(L => {
@@ -102,7 +102,14 @@ const MealDeliveryPage = () => {
 
         // Ensure the red icon is loaded before creating the map or markers that might use it
         if (!redIcon) {
-          redIcon = new L.Icon({ /* ... icon options ... */ });
+          redIcon = new L.Icon({
+              iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-red.png',
+              shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+              iconSize: [25, 41],
+              iconAnchor: [12, 41],
+              popupAnchor: [1, -34],
+              shadowSize: [41, 41]
+            });
         }
 
 
@@ -186,7 +193,7 @@ const MealDeliveryPage = () => {
    };
 
   const getCurrentLocationAndSetOrigin = async () => {
-    if (!LRef.current || !mapRef.current) return;
+    if (!LRef.current || !mapRef.current || !redIcon) return; // Ensure redIcon is loaded
     const L = LRef.current;
 
     // Reset click count if GPS is used for origin
@@ -405,8 +412,10 @@ const MealDeliveryPage = () => {
        setClickCount(1);
      } else if (clickCount === 1) {
        // Set Destination
-       setDestination(address);
-       if (destinationInputRef.current) destinationInputRef.current.value = address;
+       setDestination(address); // Update state for destination
+       if (destinationInputRef.current) { // Check if ref exists
+         destinationInputRef.current.value = address; // Update input field value
+       }
 
        if (destinationMarker) {
          mapRef.current.removeLayer(destinationMarker);
@@ -428,19 +437,8 @@ const MealDeliveryPage = () => {
        // Reset if clicked again after destination is set
         resetMap();
         // Need to re-trigger the first click after reset
-        const firstClickEvent = new MouseEvent('click', {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-            clientX: e.originalEvent.clientX, // Pass necessary event properties
-            clientY: e.originalEvent.clientY,
-            // Add other properties if needed by Leaflet or your logic
-        });
-        // Find the map container and dispatch the event.
-        // Note: This might not work perfectly depending on Leaflet's internal handling.
-        // A more robust way might be to directly call the logic for the first click.
-        // For simplicity, let's call handleMapClick directly after reset:
-         await handleMapClick(e); // Simulate the first click again
+        // Calling handleMapClick directly after reset to simulate the first click again
+         await handleMapClick(e);
 
 
      }
