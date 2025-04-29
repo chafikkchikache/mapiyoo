@@ -33,22 +33,22 @@ const defaultLocation = {
   lng: -118.243683,
 };
 
-// Keep L reference accessible
-let LRef = React.useRef<typeof L | null>(null);
+// Keep L reference accessible outside component scope for helper function
+let LRef: React.MutableRefObject<typeof L | null> = { current: null };
 
 // Function to create Leaflet DivIcon from Lucide React component
-const createLucideIcon = (IconComponent: React.ElementType, colorClass = 'text-primary') => {
+const createLucideIcon = (IconComponent: React.ElementType, colorClass = 'text-primary'): L.DivIcon | undefined => {
   if (!LRef.current) return undefined; // Leaflet not loaded yet
   const L = LRef.current;
   const iconHtml = ReactDOMServer.renderToStaticMarkup(
-    // Add a wrapper div to potentially help with styling/sizing if needed
+    // Add a wrapper div to ensure proper styling and centering if needed
     React.createElement('div', { style: { display: 'inline-block', position: 'relative', bottom: '-5px' /* Adjust vertical alignment */ } },
       React.createElement(IconComponent, { className: `h-6 w-6 ${colorClass}` })
     )
   );
   return L.divIcon({
     html: iconHtml,
-    className: 'leaflet-lucide-icon', // Custom class to potentially remove default styles
+    className: 'leaflet-lucide-icon', // Custom class to remove default styles
     iconSize: [24, 24], // Match h-6 w-6
     iconAnchor: [12, 24], // Anchor point (bottom center)
     popupAnchor: [0, -24] // Popup position relative to anchor
@@ -115,6 +115,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 
 
 const MealDeliveryPage = () => {
+  const { toast } = useToast(); // Moved inside the component
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
@@ -124,7 +125,6 @@ const MealDeliveryPage = () => {
   const mapRef = useRef<L.Map | null>(null);
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast(); // Moved inside the component
   const [originMarker, setOriginMarker] = useState<L.Marker | null>(null);
   const [destinationMarker, setDestinationMarker] = useState<L.Marker | null>(null);
   const [routeLine, setRouteLine] = useState<L.GeoJSON | null>(null);
@@ -153,13 +153,13 @@ const MealDeliveryPage = () => {
           zoom: 10,
           doubleClickZoom: false,
           closePopupOnClick: true, // Allow popups to close normally
-          crs: L.CRS.EPSG3857,
+          //crs: L.CRS.EPSG3857, // default, not needed
           attributionControl: false,
         });
 
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { // Use https and standard subdomains
           maxZoom: 19,
-          attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
 
         L.control.attribution({ position: 'bottomright', prefix: '' }).addTo(map);
@@ -224,7 +224,10 @@ const MealDeliveryPage = () => {
    };
 
   const getCurrentLocationAndSetOrigin = async () => {
-    if (!LRef.current || !mapRef.current || !currentPositionIcon) return;
+    if (!LRef.current || !mapRef.current || !currentPositionIcon) {
+       toast({ variant: 'destructive', title: 'Erreur Carte/Icone', description: 'La carte ou l\'icône GPS n\'a pas pu être chargée.' });
+       return;
+    }
     const L = LRef.current;
 
     resetMapStateForNewOrigin(); // Clear existing markers/route
@@ -302,6 +305,7 @@ const MealDeliveryPage = () => {
 
 
     try {
+      // Using OSRM demo server - replace with your own instance for production
       const response = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${originCoords.lng},${originCoords.lat};${destinationCoords.lng},${destinationCoords.lat}?geometries=geojson&overview=full`
       );
@@ -315,7 +319,8 @@ const MealDeliveryPage = () => {
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
         const geoJson = route.geometry;
-        const distanceKm = (route.distance / 1000).toFixed(2);
+        const distanceKm = (route.distance / 1000).toFixed(2); // Distance in km
+        const durationMinutes = Math.round(route.duration / 60); // Duration in minutes
 
         if (routeLine) {
           mapRef.current.removeLayer(routeLine);
@@ -325,7 +330,7 @@ const MealDeliveryPage = () => {
           style: {color: 'hsl(var(--primary))', weight: 5}, // Use primary color from theme
         }).addTo(mapRef.current);
 
-        newRouteLine.bindPopup(`Distance: ${distanceKm} km`).openPopup();
+        newRouteLine.bindPopup(`Distance: ${distanceKm} km<br>Durée: ${durationMinutes} min`).openPopup();
         setRouteLine(newRouteLine);
 
         mapRef.current.fitBounds(newRouteLine.getBounds());
@@ -583,11 +588,11 @@ const MealDeliveryPage = () => {
           .leaflet-lucide-icon {
             background: none !important;
             border: none !important;
-            /* Ensure the icon itself is visible if needed */
-            color: currentColor; /* Inherit color from parent/class */
+            box-shadow: none !important;
+            line-height: 0; /* Prevent extra space */
           }
-           .leaflet-marker-icon {
-             /* Reset default Leaflet styles if they interfere */
+           /* Target the default marker icon specifically if needed */
+           .leaflet-marker-icon.leaflet-div-icon {
              background: none;
              border: none;
              padding: 0;
@@ -595,6 +600,10 @@ const MealDeliveryPage = () => {
              box-shadow: none;
              width: auto !important; /* Override default width/height if necessary */
              height: auto !important;
+           }
+           .leaflet-marker-icon .leaflet-lucide-icon div {
+              /* Ensure the inner div doesn't cause issues */
+              line-height: normal; /* Reset line-height if needed */
            }
         `}</style>
 
@@ -802,5 +811,3 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
-
-    
