@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {Locate, MapPin, MapPinCheck} from 'lucide-react';
+import {Locate, MapPin, MapPinCheck, Search} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, MapPinCheck for confirmed Destination
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import type L from 'leaflet'; // Import Leaflet type
 
@@ -33,9 +33,10 @@ const defaultLocation = {
   lng: -118.243683,
 };
 
-// Function to create Leaflet DivIcon from Lucide React component
-let LRef = React.useRef<typeof L | null>(null); // Keep L reference accessible
+// Keep L reference accessible
+let LRef = React.useRef<typeof L | null>(null);
 
+// Function to create Leaflet DivIcon from Lucide React component
 const createLucideIcon = (IconComponent: React.ElementType, colorClass = 'text-primary') => {
   if (!LRef.current) return undefined; // Leaflet not loaded yet
   const L = LRef.current;
@@ -89,7 +90,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<{ lat: number; 
 
 // Geocoding function using Nominatim search
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; displayName: string } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=fr&countrycodes=fr,ma`; // Limit search, prioritize FR/MA
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=fr&countrycodes=ma`; // Limit search, prioritize FR/MA
   try {
     const response = await fetch(url);
     if (!response.ok) {
@@ -123,7 +124,7 @@ const MealDeliveryPage = () => {
   const mapRef = useRef<L.Map | null>(null);
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
-  const {toast} = useToast();
+  const { toast } = useToast(); // Moved inside the component
   const [originMarker, setOriginMarker] = useState<L.Marker | null>(null);
   const [destinationMarker, setDestinationMarker] = useState<L.Marker | null>(null);
   const [routeLine, setRouteLine] = useState<L.GeoJSON | null>(null);
@@ -170,7 +171,7 @@ const MealDeliveryPage = () => {
 
         map.on('click', handleMapClick);
 
-        checkGpsPermission(false);
+        checkGpsPermission(false); // Don't get location on initial load
 
       } catch (error) {
         console.error('Failed to load Leaflet or initialize map:', error);
@@ -243,7 +244,7 @@ const MealDeliveryPage = () => {
       setCurrentLocation(coords);
       setHasGpsPermission(true);
 
-      // Add new marker for current location using the specific icon
+      // Add new marker for current location using the specific icon (red Locate icon)
       const newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(mapRef.current);
       setOriginMarker(newMarker); // Still consider it the origin
 
@@ -321,7 +322,7 @@ const MealDeliveryPage = () => {
         }
 
         const newRouteLine = L.geoJSON(geoJson, {
-          style: {color: 'hsl(var(--primary))', weight: 5},
+          style: {color: 'hsl(var(--primary))', weight: 5}, // Use primary color from theme
         }).addTo(mapRef.current);
 
         newRouteLine.bindPopup(`Distance: ${distanceKm} km`).openPopup();
@@ -329,6 +330,7 @@ const MealDeliveryPage = () => {
 
         mapRef.current.fitBounds(newRouteLine.getBounds());
 
+        // Optionally close the origin/destination popups once route is shown
         originMarker.closePopup();
         destinationMarker.closePopup();
 
@@ -344,12 +346,13 @@ const MealDeliveryPage = () => {
       toast({
         variant: 'destructive',
         title: 'Erreur de calcul d’itinéraire',
-        description: `Une erreur s’est produite lors du calcul de l’itinéraire.`,
+        description: `Une erreur s’est produite lors du calcul de l’itinéraire. ${error.message || ''}`,
       });
     }
   };
 
-  const handleScrollToInput = (ref: React.RefObject<HTMLInputElement>) => {
+   // Function to focus input and set click mode
+   const handleScrollToInput = (ref: React.RefObject<HTMLInputElement>) => {
      if (ref.current) {
        ref.current.scrollIntoView({
          behavior: 'smooth',
@@ -378,14 +381,17 @@ const MealDeliveryPage = () => {
     } else if (hasGpsPermission === true) {
        await getCurrentLocationAndSetOrigin();
     } else {
-       await checkGpsPermission(true);
+       // If permission state is unknown, try to get it, possibly prompting the user
+       await checkGpsPermission(true); // Attempt to get location after check
         if (navigator.permissions) {
+             // Re-check permission status after attempting to get it
              const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
              if (permissionStatus.state !== 'granted') {
                  setIsGpsDialogOpen(true); // Show dialog if still not granted after check
              }
          } else {
-             setIsGpsDialogOpen(true); // Fallback if permissions API not supported
+             // Fallback if permissions API not supported, assume need to ask via dialog
+             setIsGpsDialogOpen(true);
          }
     }
   };
@@ -393,6 +399,7 @@ const MealDeliveryPage = () => {
    const handleGpsDialogAction = async (allow: boolean) => {
      setIsGpsDialogOpen(false);
      if (allow) {
+       // The browser permission prompt will be triggered by getCurrentPosition
        await getCurrentLocationAndSetOrigin();
      } else {
        toast({
@@ -402,6 +409,7 @@ const MealDeliveryPage = () => {
      }
    };
 
+   // Resets markers and route, keeps input values
    const resetMapStateForNewOrigin = () => {
         if (!mapRef.current) return;
         if (originMarker) mapRef.current.removeLayer(originMarker);
@@ -414,14 +422,15 @@ const MealDeliveryPage = () => {
         setClickMode('origin'); // Default back to setting origin
     };
 
+    // Resets everything: markers, route, input values, map view
     const resetFullMap = () => {
         if (mapRef.current && LRef.current) {
-           resetMapStateForNewOrigin();
+           resetMapStateForNewOrigin(); // Clear markers and route
            setOrigin('');
            setDestination('');
            if (originInputRef.current) originInputRef.current.value = '';
            if (destinationInputRef.current) destinationInputRef.current.value = '';
-           // Optionally reset GPS state
+           // Optionally reset GPS state if needed
            // setCurrentLocation(null);
            // setHasGpsPermission(null);
            mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
@@ -433,7 +442,7 @@ const MealDeliveryPage = () => {
    const handleMapClick = async (e: L.LeafletMouseEvent) => {
      if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') {
        if (clickMode === 'none') {
-            toast({ variant: 'destructive', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône près d'un champ d'adresse pour activer la sélection sur carte." });
+            toast({ variant: 'destructive', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône 'Choisir sur la carte' près d'un champ d'adresse pour activer la sélection." });
        } else {
             toast({ variant: 'destructive', title: 'Carte non prête' });
        }
@@ -457,11 +466,12 @@ const MealDeliveryPage = () => {
 
         const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
          .addTo(mapRef.current)
-         .bindPopup(`Départ: ${address.split(',')[0]}`)
+         .bindPopup(`Départ: ${address.split(',')[0]}`) // Show only first part of address
          .openPopup();
        setOriginMarker(newOriginMarker);
 
-       setClickMode('destination'); // Next click sets destination
+       setClickMode('destination'); // Next click should set destination
+       toast({ title: "Point de Départ Défini", description: "Cliquez maintenant sur la carte pour définir la destination." });
      } else if (clickMode === 'destination' && destinationIcon) {
         if (destinationMarker) mapRef.current.removeLayer(destinationMarker); // Remove previous destination marker
          if (routeLine) { // Remove route if destination changes
@@ -474,14 +484,22 @@ const MealDeliveryPage = () => {
 
        const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
          .addTo(mapRef.current)
-         .bindPopup(`Destination: ${address.split(',')[0]}`)
+         .bindPopup(`Destination: ${address.split(',')[0]}`) // Show only first part of address
          .openPopup();
        setDestinationMarker(newDestinationMarker);
 
        setClickMode('none'); // Deactivate map clicking after destination is set
+       toast({ title: "Destination Définie", description: "Vous pouvez maintenant calculer l'itinéraire." });
+
+        // Automatically calculate route if origin also exists
+        if (originMarker) {
+            await calculateRoute();
+        }
+
      }
    };
 
+   // Handle address search from input fields
    const handleAddressSearch = async (type: 'origin' | 'destination') => {
       if (!mapRef.current || !LRef.current) return;
       const L = LRef.current;
@@ -496,6 +514,7 @@ const MealDeliveryPage = () => {
 
       if (result) {
           const { lat, lng, displayName } = result;
+          // Use blue MapPin for origin search result, green MapPinCheck for destination
           const icon = type === 'origin' ? originIcon : destinationIcon;
           let markerRef = type === 'origin' ? originMarker : destinationMarker;
           const setMarker = type === 'origin' ? setOriginMarker : setDestinationMarker;
@@ -507,14 +526,17 @@ const MealDeliveryPage = () => {
              return;
           }
 
+          // Remove existing marker of the same type
           if (markerRef) {
               mapRef.current.removeLayer(markerRef);
           }
-           if (routeLine) { // Remove route if address changes via search
+           // Remove route line if address changes via search
+           if (routeLine) {
               mapRef.current.removeLayer(routeLine);
               setRouteLine(null);
           }
 
+          // Add new marker
           const newMarker = L.marker([lat, lng], { icon: icon })
               .addTo(mapRef.current)
               .bindPopup(`${type === 'origin' ? 'Départ' : 'Destination'}: ${displayName.split(',')[0]}`)
@@ -529,22 +551,29 @@ const MealDeliveryPage = () => {
           mapRef.current.setView([lat, lng], 15); // Center map on the result
 
           // Set click mode based on what was just set
-          if (type === 'origin') {
-              setClickMode('destination');
+          if (type === 'origin' && !destinationMarker) {
+              setClickMode('destination'); // If destination not set, next click sets destination
           } else {
-              setClickMode('none'); // Deactivate after destination search
+              setClickMode('none'); // Otherwise, deactivate clicking
           }
 
           toast({ title: 'Adresse Trouvée', description: displayName });
+
+           // Automatically calculate route if both markers now exist
+           const otherMarker = type === 'origin' ? destinationMarker : originMarker;
+            if (otherMarker) {
+                await calculateRoute();
+            }
+
       } else {
-          toast({ variant: 'destructive', title: 'Adresse Non Trouvée', description: 'Impossible de localiser cette adresse. Essayez différemment.' });
+          toast({ variant: 'destructive', title: 'Adresse Non Trouvée', description: 'Impossible de localiser cette adresse. Essayez différemment ou cliquez sur la carte.' });
       }
    };
 
 
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delayDuration={100}> {/* Reduced delay */}
       <div>
         {/* The map container */}
         <div id="map" style={mapContainerStyle} className="rounded-md shadow-md mb-4" />
@@ -554,7 +583,19 @@ const MealDeliveryPage = () => {
           .leaflet-lucide-icon {
             background: none !important;
             border: none !important;
+            /* Ensure the icon itself is visible if needed */
+            color: currentColor; /* Inherit color from parent/class */
           }
+           .leaflet-marker-icon {
+             /* Reset default Leaflet styles if they interfere */
+             background: none;
+             border: none;
+             padding: 0;
+             margin: 0;
+             box-shadow: none;
+             width: auto !important; /* Override default width/height if necessary */
+             height: auto !important;
+           }
         `}</style>
 
         <div className="container mx-auto p-4">
@@ -572,7 +613,7 @@ const MealDeliveryPage = () => {
                   <Input
                     id="origin"
                     type="text"
-                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-32" // Increased padding-right
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-32" // Increased padding-right for 3 icons
                     placeholder="Entrer l'adresse ou cliquer sur la carte"
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
@@ -588,7 +629,7 @@ const MealDeliveryPage = () => {
                           onClick={() => handleAddressSearch('origin')}
                           aria-label="Rechercher l'adresse de ramassage"
                         >
-                           <Locate className="h-5 w-5 text-gray-500" /> {/* Search icon ? maybe Locate is okay */}
+                           <Search className="h-5 w-5 text-gray-500" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -602,6 +643,7 @@ const MealDeliveryPage = () => {
                           size="icon"
                            onClick={() => handleScrollToInput(originInputRef)}
                           aria-label="Choisir l'adresse de ramassage sur la carte"
+                           className={clickMode === 'origin' ? 'text-primary ring-2 ring-primary' : ''} // Indicate active mode
                         >
                           <MapPin className="h-5 w-5" />
                         </Button>
@@ -616,13 +658,13 @@ const MealDeliveryPage = () => {
                           variant="ghost"
                           size="icon"
                           onClick={handleUseCurrentLocation}
-                          aria-label={hasGpsPermission ? "Utiliser ma position actuelle" : "Activer et utiliser le GPS"}
+                          aria-label={hasGpsPermission ? "Utiliser ma position actuelle (GPS)" : "Activer et utiliser le GPS"}
                         >
                           <Locate className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {hasGpsPermission ? "Utiliser ma position actuelle (GPS)" : "Activer et utiliser le GPS"}
+                        {hasGpsPermission === true ? "Utiliser ma position actuelle (GPS)" : "Activer et utiliser le GPS"}
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -638,7 +680,7 @@ const MealDeliveryPage = () => {
                   <Input
                     id="destination"
                     type="text"
-                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20" // Increased padding-right
+                    className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20" // Padding for 2 icons
                     placeholder="Entrer l'adresse ou cliquer sur la carte"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
@@ -654,7 +696,7 @@ const MealDeliveryPage = () => {
                           onClick={() => handleAddressSearch('destination')}
                           aria-label="Rechercher l'adresse de destination"
                         >
-                           <Locate className="h-5 w-5 text-gray-500" /> {/* Search icon ? maybe Locate is okay */}
+                           <Search className="h-5 w-5 text-gray-500" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -668,6 +710,7 @@ const MealDeliveryPage = () => {
                           size="icon"
                           onClick={() => handleScrollToInput(destinationInputRef)}
                            aria-label="Choisir l'adresse de destination sur la carte"
+                           className={clickMode === 'destination' ? 'text-primary ring-2 ring-primary' : ''} // Indicate active mode
                         >
                           <MapPin className="h-5 w-5" />
                         </Button>
@@ -693,11 +736,12 @@ const MealDeliveryPage = () => {
             <div className="w-full md:w-1/2 mt-4 md:mt-0">
               {hasGpsPermission === false && (
                 <Alert variant="destructive">
+                  <Locate className="h-4 w-4" /> {/* Add icon to alert */}
                   <AlertTitle>Accès GPS Refusé/Indisponible</AlertTitle>
                   <AlertDescription>
                      L'accès GPS est nécessaire pour utiliser votre position actuelle. Vous pouvez essayer de l'activer dans les paramètres de votre navigateur ou
-                     <Button variant="link" className="p-0 h-auto ml-1" onClick={() => setIsGpsDialogOpen(true)}>
-                        réessayer
+                     <Button variant="link" className="p-0 h-auto ml-1 text-destructive underline" onClick={() => setIsGpsDialogOpen(true)}>
+                        réessayer d'activer
                     </Button>
                     . Vous pouvez aussi définir le point de départ manuellement.
                   </AlertDescription>
@@ -705,6 +749,7 @@ const MealDeliveryPage = () => {
               )}
                {hasGpsPermission === null && (
                  <Alert>
+                    <Locate className="h-4 w-4" /> {/* Add icon to alert */}
                      <AlertTitle>Vérification GPS</AlertTitle>
                      <AlertDescription>
                          Vérification de l'autorisation GPS...
@@ -757,3 +802,5 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
+
+    
