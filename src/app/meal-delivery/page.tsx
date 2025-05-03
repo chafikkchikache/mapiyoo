@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {Locate, MapPin, MapPinCheck, Search, Pin, PinOff} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, MapPinCheck for confirmed Destination
+import {Locate, MapPin, Search, Pin, PinOff} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, MapPinCheck for confirmed Destination (Removed MapPinCheck as it doesn't seem to be used for icons)
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import type L from 'leaflet'; // Import Leaflet type
 
@@ -906,13 +906,13 @@ const MealDeliveryPage = () => {
    // Handle address search from input fields
    const handleAddressSearch = async (type: 'origin' | 'destination') => {
        console.log(`Handling address search for: ${type}`);
-       if (!mapRef.current || !LRef.current || !originIcon || !destinationIcon) {
-            console.error("Cannot search address: Map, Leaflet, or icons not ready.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconsReady: !!originIcon && !!destinationIcon });
+       const currentMap = mapRef.current; // Use local variable
+       if (!currentMap || !LRef.current || !originIcon || !destinationIcon) {
+            console.error("Cannot search address: Map, Leaflet, or icons not ready.", { mapReady: !!currentMap, LReady: !!LRef.current, iconsReady: !!originIcon && !!destinationIcon });
            toast({ variant: "destructive", title: "Carte non prête", description: "La carte ou ses composants ne sont pas encore initialisés." });
            return;
        }
        const L = LRef.current;
-       const currentMap = mapRef.current; // Use local variable
        const address = type === 'origin' ? origin : destination; // Get address from STATE
 
        if (!address || address.trim().length < 3) { // Basic validation
@@ -960,8 +960,13 @@ const MealDeliveryPage = () => {
            try {
                 console.log(`Adding new ${type} marker at (${lat}, ${lng}).`);
                 if (!iconToUse) throw new Error(`${type} icon is not loaded`); // Should not happen due to initial check, but safe
+                // Ensure map instance is still valid before adding layer
+                if (!mapRef.current) {
+                    console.error(`Map instance became unavailable before adding ${type} marker.`);
+                    throw new Error("Map instance is not available.");
+                }
                newMarker = L.marker([lat, lng], { icon: iconToUse })
-                   .addTo(currentMap)
+                   .addTo(currentMap) // Use the captured currentMap which is checked
                    .bindPopup(`${type === 'origin' ? 'Départ' : 'Destination'}: ${displayName.split(',')[0]}`)
                    .openPopup();
 
@@ -995,11 +1000,12 @@ const MealDeliveryPage = () => {
            } catch (error) {
                console.error(`Error adding marker for ${type} search:`, error);
                toast({ variant: 'destructive', title: `Erreur Marqueur ${type === 'origin' ? 'Départ' : 'Destination'}`, description: `Impossible d'ajouter le marqueur pour ${address}.` });
-               // Attempt to remove potentially failed marker
-               if (newMarker && currentMap.hasLayer(newMarker)) {
-                    try { currentMap.removeLayer(newMarker); } catch (removeError) { console.warn("Error removing failed search marker:", removeError); }
-                    setMarkerState(null); // Clear marker state on error
+               // Attempt to remove potentially failed marker only if map instance still exists
+               if (newMarker && mapRef.current && mapRef.current.hasLayer(newMarker)) {
+                    try { mapRef.current.removeLayer(newMarker); } catch (removeError) { console.warn("Error removing failed search marker:", removeError); }
                }
+               setMarkerState(null); // Clear marker state on error
+
                // Reset click mode potentially
                setClickMode('none');
            }
@@ -1054,6 +1060,11 @@ const MealDeliveryPage = () => {
             /* Style for the crosshair cursor (already set inline, but good fallback) */
             #map.leaflet-container {
                 cursor: crosshair !important;
+            }
+            /* Fix for map rendering issue where only zoom buttons show */
+            .leaflet-container {
+                width: 100%;
+                height: 400px; /* Ensure this matches mapContainerStyle height */
             }
         `}</style>
 
