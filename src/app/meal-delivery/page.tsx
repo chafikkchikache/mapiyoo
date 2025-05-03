@@ -131,6 +131,68 @@ const MealDeliveryPage = () => {
   const [clickMode, setClickMode] = useState<'origin' | 'destination' | 'none'>('origin'); // Track next map click target
 
 
+   // Define handleMapClick within the component scope
+   const handleMapClick = async (e: L.LeafletMouseEvent) => {
+     if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') {
+       if (clickMode === 'none') {
+            toast({ variant: 'default', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône 'Choisir sur la carte' (📍) près d'un champ d'adresse pour activer la sélection." });
+       } else {
+            toast({ variant: 'destructive', title: 'Carte non prête' });
+       }
+       return;
+     }
+
+     const L = LRef.current;
+     const latLng = e.latlng;
+     const geocodeResult = await reverseGeocode(latLng.lat, latLng.lng);
+     const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`;
+
+     if (clickMode === 'origin' && originIcon) {
+        if (originMarker) mapRef.current.removeLayer(originMarker); // Remove previous origin marker
+        if (routeLine) { // Remove route if origin changes
+            mapRef.current.removeLayer(routeLine);
+            setRouteLine(null);
+        }
+
+        setOrigin(address); // Update state
+        if (originInputRef.current) originInputRef.current.value = address; // Update input field
+
+        const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
+         .addTo(mapRef.current)
+         .bindPopup(`Départ: ${address.split(',')[0]}`) // Show only first part of address
+         .openPopup();
+       setOriginMarker(newOriginMarker);
+
+       setClickMode('destination'); // Next click should set destination
+       toast({ title: "Point de Départ Défini", description: "Cliquez maintenant sur la carte pour définir la destination, ou utilisez la recherche." });
+     } else if (clickMode === 'destination' && destinationIcon) {
+        if (destinationMarker) mapRef.current.removeLayer(destinationMarker); // Remove previous destination marker
+         if (routeLine) { // Remove route if destination changes
+            mapRef.current.removeLayer(routeLine);
+            setRouteLine(null);
+        }
+
+       setDestination(address); // Update state
+       if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field
+
+       const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
+         .addTo(mapRef.current)
+         .bindPopup(`Destination: ${address.split(',')[0]}`) // Show only first part of address
+         .openPopup();
+       setDestinationMarker(newDestinationMarker);
+
+       setClickMode('none'); // Deactivate map clicking after destination is set
+       toast({ title: "Destination Définie", description: "Vous pouvez maintenant calculer l'itinéraire ou ajuster les points." });
+
+        // Automatically calculate route if origin also exists
+        if (originMarker) {
+            await calculateRoute();
+        }
+
+     }
+   };
+
+
   useEffect(() => {
     const initializeMap = async () => {
       if (typeof window === 'undefined' || LRef.current) return;
@@ -169,6 +231,7 @@ const MealDeliveryPage = () => {
 
         (map.getContainer()).style.cursor = 'crosshair';
 
+        // Attach the click listener here
         map.on('click', handleMapClick);
 
         checkGpsPermission(false); // Don't get location on initial load
@@ -187,13 +250,15 @@ const MealDeliveryPage = () => {
 
     return () => {
       if (mapRef.current) {
+         // Clean up map event listener
+         mapRef.current.off('click', handleMapClick);
         mapRef.current.remove();
         mapRef.current = null;
       }
       LRef.current = null; // Clean up L reference
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]); // Removed handleMapClick from dependencies as it will be defined inside
+  }, [toast]); // Removed handleMapClick from dependencies as it's defined above now
 
 
   const checkGpsPermission = async (getLocationOnGrant = false) => {
@@ -292,9 +357,9 @@ const MealDeliveryPage = () => {
   const calculateRoute = async () => {
     if (!LRef.current || !mapRef.current || !originMarker || !destinationMarker) {
        toast({
-        variant: 'destructive',
+        variant: 'default', // Changed to default as it's informational
         title: 'Information Manquante',
-        description: 'Veuillez définir un point de départ et de destination sur la carte ou via la recherche.',
+        description: 'Veuillez définir un point de départ ET de destination sur la carte ou via la recherche pour calculer l\'itinéraire.',
       });
       return;
     }
@@ -330,7 +395,7 @@ const MealDeliveryPage = () => {
           style: {color: 'hsl(var(--primary))', weight: 5}, // Use primary color from theme
         }).addTo(mapRef.current);
 
-        newRouteLine.bindPopup(`Distance: ${distanceKm} km<br>Durée: ${durationMinutes} min`).openPopup();
+        newRouteLine.bindPopup(`Distance: ${distanceKm} km<br>Durée: ~${durationMinutes} min`).openPopup();
         setRouteLine(newRouteLine);
 
         mapRef.current.fitBounds(newRouteLine.getBounds());
@@ -338,6 +403,11 @@ const MealDeliveryPage = () => {
         // Optionally close the origin/destination popups once route is shown
         originMarker.closePopup();
         destinationMarker.closePopup();
+
+         toast({
+          title: 'Itinéraire Calculé',
+          description: `Distance: ${distanceKm} km, Durée: ~${durationMinutes} min. Options de livraison disponibles ci-dessous.`,
+        });
 
       } else {
         toast({
@@ -357,21 +427,18 @@ const MealDeliveryPage = () => {
   };
 
    // Function to focus input and set click mode
-   const handleScrollToInput = (ref: React.RefObject<HTMLInputElement>) => {
+   const handleFocusInputAndSetMode = (ref: React.RefObject<HTMLInputElement>, mode: 'origin' | 'destination') => {
      if (ref.current) {
        ref.current.scrollIntoView({
          behavior: 'smooth',
          block: 'center',
        });
        ref.current.focus();
-       // Set click mode based on which input was scrolled to
-       if (ref === originInputRef) {
-           setClickMode('origin');
-           toast({ title: "Mode Sélection Activé", description: "Cliquez sur la carte pour définir le point de départ." });
-       } else if (ref === destinationInputRef) {
-           setClickMode('destination');
-           toast({ title: "Mode Sélection Activé", description: "Cliquez sur la carte pour définir le point de destination." });
-       }
+       setClickMode(mode);
+       toast({
+           title: "Mode Sélection Activé",
+           description: `Cliquez sur la carte pour définir ${mode === 'origin' ? 'le point de départ' : 'la destination'}.`,
+       });
      }
    };
 
@@ -439,70 +506,13 @@ const MealDeliveryPage = () => {
            // setCurrentLocation(null);
            // setHasGpsPermission(null);
            mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
-           toast({ title: 'Carte Réinitialisée' });
+           setClickMode('origin'); // Reset click mode to origin
+           toast({ title: 'Carte Réinitialisée', description: 'Sélectionnez un nouveau point de départ.' });
         }
       };
 
 
-   const handleMapClick = async (e: L.LeafletMouseEvent) => {
-     if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') {
-       if (clickMode === 'none') {
-            toast({ variant: 'destructive', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône 'Choisir sur la carte' près d'un champ d'adresse pour activer la sélection." });
-       } else {
-            toast({ variant: 'destructive', title: 'Carte non prête' });
-       }
-       return;
-     }
 
-     const L = LRef.current;
-     const latLng = e.latlng;
-     const geocodeResult = await reverseGeocode(latLng.lat, latLng.lng);
-     const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`;
-
-     if (clickMode === 'origin' && originIcon) {
-        if (originMarker) mapRef.current.removeLayer(originMarker); // Remove previous origin marker
-        if (routeLine) { // Remove route if origin changes
-            mapRef.current.removeLayer(routeLine);
-            setRouteLine(null);
-        }
-
-        setOrigin(address); // Update state
-        if (originInputRef.current) originInputRef.current.value = address; // Update input field
-
-        const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
-         .addTo(mapRef.current)
-         .bindPopup(`Départ: ${address.split(',')[0]}`) // Show only first part of address
-         .openPopup();
-       setOriginMarker(newOriginMarker);
-
-       setClickMode('destination'); // Next click should set destination
-       toast({ title: "Point de Départ Défini", description: "Cliquez maintenant sur la carte pour définir la destination." });
-     } else if (clickMode === 'destination' && destinationIcon) {
-        if (destinationMarker) mapRef.current.removeLayer(destinationMarker); // Remove previous destination marker
-         if (routeLine) { // Remove route if destination changes
-            mapRef.current.removeLayer(routeLine);
-            setRouteLine(null);
-        }
-
-       setDestination(address); // Update state
-       if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field
-
-       const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
-         .addTo(mapRef.current)
-         .bindPopup(`Destination: ${address.split(',')[0]}`) // Show only first part of address
-         .openPopup();
-       setDestinationMarker(newDestinationMarker);
-
-       setClickMode('none'); // Deactivate map clicking after destination is set
-       toast({ title: "Destination Définie", description: "Vous pouvez maintenant calculer l'itinéraire." });
-
-        // Automatically calculate route if origin also exists
-        if (originMarker) {
-            await calculateRoute();
-        }
-
-     }
-   };
 
    // Handle address search from input fields
    const handleAddressSearch = async (type: 'origin' | 'destination') => {
@@ -558,15 +568,21 @@ const MealDeliveryPage = () => {
           // Set click mode based on what was just set
           if (type === 'origin' && !destinationMarker) {
               setClickMode('destination'); // If destination not set, next click sets destination
-          } else {
-              setClickMode('none'); // Otherwise, deactivate clicking
+              toast({ title: 'Point de Départ Trouvé', description: 'Sélectionnez maintenant la destination sur la carte ou via la recherche.'});
+          } else if (type === 'destination' && !originMarker) {
+              setClickMode('origin'); // If origin not set, next click sets origin
+               toast({ title: 'Destination Trouvée', description: 'Sélectionnez maintenant le point de départ sur la carte ou via la recherche.'});
+          }
+           else {
+              setClickMode('none'); // Otherwise, deactivate clicking if both are set or search initiated it
+               toast({ title: 'Adresse Trouvée', description: displayName });
           }
 
-          toast({ title: 'Adresse Trouvée', description: displayName });
 
            // Automatically calculate route if both markers now exist
-           const otherMarker = type === 'origin' ? destinationMarker : originMarker;
-            if (otherMarker) {
+           const currentOrigin = type === 'origin' ? newMarker : originMarker;
+           const currentDestination = type === 'destination' ? newMarker : destinationMarker;
+            if (currentOrigin && currentDestination) {
                 await calculateRoute();
             }
 
@@ -623,7 +639,7 @@ const MealDeliveryPage = () => {
                     id="origin"
                     type="text"
                     className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-32" // Increased padding-right for 3 icons
-                    placeholder="Entrer l'adresse ou cliquer sur la carte"
+                    placeholder="Entrer l'adresse, utiliser le GPS, ou cliquer sur la carte"
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
                     ref={originInputRef}
@@ -650,15 +666,15 @@ const MealDeliveryPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                           onClick={() => handleScrollToInput(originInputRef)}
+                           onClick={() => handleFocusInputAndSetMode(originInputRef, 'origin')}
                           aria-label="Choisir l'adresse de ramassage sur la carte"
-                           className={clickMode === 'origin' ? 'text-primary ring-2 ring-primary' : ''} // Indicate active mode
+                           className={clickMode === 'origin' ? 'text-primary ring-2 ring-primary rounded-full' : ''} // Indicate active mode with ring and rounded
                         >
                           <MapPin className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        Choisir l’adresse de ramassage sur la carte ({clickMode === 'origin' ? 'Actif' : 'Inactif'})
+                        Activer la sélection du point de départ sur la carte ({clickMode === 'origin' ? 'Actif' : 'Inactif'})
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -717,15 +733,15 @@ const MealDeliveryPage = () => {
                          <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleScrollToInput(destinationInputRef)}
+                          onClick={() => handleFocusInputAndSetMode(destinationInputRef, 'destination')}
                            aria-label="Choisir l'adresse de destination sur la carte"
-                           className={clickMode === 'destination' ? 'text-primary ring-2 ring-primary' : ''} // Indicate active mode
+                           className={clickMode === 'destination' ? 'text-primary ring-2 ring-primary rounded-full' : ''} // Indicate active mode with ring and rounded
                         >
                           <MapPin className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                         Choisir l’adresse de destination sur la carte ({clickMode === 'destination' ? 'Actif' : 'Inactif'})
+                         Activer la sélection de la destination sur la carte ({clickMode === 'destination' ? 'Actif' : 'Inactif'})
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -734,8 +750,8 @@ const MealDeliveryPage = () => {
 
                {/* Action Buttons */}
                <div className="flex gap-2 flex-wrap">
-                <Button onClick={calculateRoute} disabled={!originMarker || !destinationMarker || !!routeLine}>
-                  Calculer la Route
+                <Button onClick={calculateRoute} disabled={!originMarker || !destinationMarker}>
+                  {routeLine ? 'Recalculer la Route' : 'Calculer la Route'}
                 </Button>
                 <Button onClick={resetFullMap} variant="secondary">Réinitialiser</Button>
               </div>
