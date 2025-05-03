@@ -83,7 +83,8 @@ async function reverseGeocode(lat: number, lng: number): Promise<{ lat: number; 
             if (data.address.country) addressParts.push(data.address.country);
         }
         const detailedAddress = addressParts.length > 0 ? addressParts.join(', ') : data.display_name;
-        const displayName = `${detailedAddress} (${lat.toFixed(5)}, ${lng.toFixed(5)})`; // Include coords
+        // Include coords in the display name for clarity
+        const displayName = `${detailedAddress} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
 
       return {
         lat: lat,
@@ -115,7 +116,8 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
     console.log("Geocode Result:", data); // Log the full result
     if (data && data.length > 0) {
       const result = data[0];
-      const displayName = `${result.display_name} (${parseFloat(result.lat).toFixed(5)}, ${parseFloat(result.lon).toFixed(5)})`; // Add coords
+      // Include coords in the display name for clarity
+      const displayName = `${result.display_name} (${parseFloat(result.lat).toFixed(5)}, ${parseFloat(result.lon).toFixed(5)})`;
       return {
         lat: parseFloat(result.lat),
         lng: parseFloat(result.lon),
@@ -186,7 +188,8 @@ const MealDeliveryPage = () => {
                const distanceKm = (route.distance / 1000).toFixed(2); // Distance in km
                const durationMinutes = Math.round(route.duration / 60); // Duration in minutes
 
-               if (routeLine && mapRef.current.hasLayer(routeLine)) { // Check before removing
+               // Check map instance and layer existence before removing
+               if (mapRef.current && routeLine && mapRef.current.hasLayer(routeLine)) {
                    mapRef.current.removeLayer(routeLine);
                }
 
@@ -250,14 +253,18 @@ const MealDeliveryPage = () => {
      console.log("Reverse Geocode Result in click handler:", geocodeResult); // Debug log
 
      // Update or dismiss the toast
-     geocodeToast.update({ id: geocodeToast.id, title: geocodeResult ? "Adresse trouvée" : "Adresse non trouvée", description: geocodeResult ? geocodeResult.displayName : `Impossible de trouver une adresse pour ${latLng.lat.toFixed(5)}, ${lng.lng.toFixed(5)}` });
-     // setTimeout(() => geocodeToast.dismiss(), 3000); // Optional: dismiss after a delay
+     geocodeToast.update({ id: geocodeToast.id, title: geocodeResult ? "Adresse trouvée" : "Adresse non trouvée", description: geocodeResult ? geocodeResult.displayName : `Impossible de trouver une adresse pour ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}` });
+
 
      const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`;
 
      if (clickMode === 'origin' && originIcon) {
-        if (originMarker && mapRef.current.hasLayer(originMarker)) mapRef.current.removeLayer(originMarker); // Remove previous origin marker, check if exists
-        if (routeLine && mapRef.current.hasLayer(routeLine)) { // Remove route if origin changes
+        // Check map instance and layer existence before removing
+        if (mapRef.current && originMarker && mapRef.current.hasLayer(originMarker)) {
+            mapRef.current.removeLayer(originMarker);
+        }
+        // Remove route if origin changes
+        if (mapRef.current && routeLine && mapRef.current.hasLayer(routeLine)) {
             mapRef.current.removeLayer(routeLine);
             setRouteLine(null);
         }
@@ -272,6 +279,7 @@ const MealDeliveryPage = () => {
 
        setClickMode('destination'); // Next click should set destination
        toast({ title: "Point de Départ Défini", description: "Cliquez maintenant sur la carte pour définir la destination, ou utilisez la recherche." });
+
         // If destination already exists, calculate route immediately
         if (destinationMarker) {
             console.log("Calculating route after origin set via click (destination exists)...");
@@ -279,8 +287,12 @@ const MealDeliveryPage = () => {
         }
 
      } else if (clickMode === 'destination' && destinationIcon) {
-        if (destinationMarker && mapRef.current.hasLayer(destinationMarker)) mapRef.current.removeLayer(destinationMarker); // Remove previous destination marker, check if exists
-         if (routeLine && mapRef.current.hasLayer(routeLine)) { // Remove route if destination changes
+        // Check map instance and layer existence before removing
+        if (mapRef.current && destinationMarker && mapRef.current.hasLayer(destinationMarker)) {
+            mapRef.current.removeLayer(destinationMarker);
+        }
+        // Remove route if destination changes
+        if (mapRef.current && routeLine && mapRef.current.hasLayer(routeLine)) {
             mapRef.current.removeLayer(routeLine);
             setRouteLine(null);
         }
@@ -308,7 +320,10 @@ const MealDeliveryPage = () => {
 
   useEffect(() => {
     const initializeMap = async () => {
-      if (typeof window === 'undefined' || LRef.current || mapRef.current) return; // Check mapRef too
+      if (typeof window === 'undefined' || !document.getElementById('map') || mapRef.current) {
+         console.log("Map initialization skipped:", { hasWindow: typeof window !== 'undefined', mapElementExists: !!document.getElementById('map'), mapRefExists: !!mapRef.current });
+         return;
+      }
 
       try {
         console.log("Initializing map...");
@@ -322,12 +337,14 @@ const MealDeliveryPage = () => {
 
         const mapElement = document.getElementById('map');
         if (!mapElement) {
-            console.error("Map element not found");
+            console.error("Map element not found after import");
             return;
         }
+
+        // Check again if mapRef was set concurrently
         if (mapRef.current) {
-            console.log("Map already initialized, skipping.");
-            return; // Already initialized
+            console.log("Map already initialized (concurrently), skipping.");
+            return;
         }
 
 
@@ -336,7 +353,6 @@ const MealDeliveryPage = () => {
           zoom: 10,
           doubleClickZoom: false,
           closePopupOnClick: true, // Allow popups to close normally
-          //crs: L.CRS.EPSG3857, // default, not needed
           attributionControl: false,
         });
 
@@ -347,11 +363,15 @@ const MealDeliveryPage = () => {
 
         L.control.attribution({ position: 'bottomright', prefix: '' }).addTo(map);
 
-        mapRef.current = map;
+        mapRef.current = map; // Assign map instance to ref
         setMapLoaded(true);
         console.log("Map initialized and loaded state set.");
 
-        (map.getContainer()).style.cursor = 'crosshair';
+        // Safely access container after mapRef is set
+        const mapContainer = map.getContainer();
+        if (mapContainer) {
+          mapContainer.style.cursor = 'crosshair';
+        }
 
         // Attach the click listener here
         map.on('click', handleMapClick);
@@ -373,21 +393,31 @@ const MealDeliveryPage = () => {
 
     // Cleanup function
     const cleanup = () => {
-        console.log("Cleaning up map...");
-      if (mapRef.current) {
-         // Clean up map event listener
-         mapRef.current.off('click', handleMapClick);
-         console.log("Map click listener removed.");
-         // Check if the map container still exists before removing
-         if (mapRef.current.getContainer()) {
-            try {
-              mapRef.current.remove();
-              console.log("Map instance removed.");
-            } catch (e) {
-              console.warn("Error removing map:", e)
-            }
+      console.log("Cleaning up map...");
+      const currentMap = mapRef.current; // Capture current ref value
+      if (currentMap) {
+         console.log("Map instance found for cleanup.");
+         try {
+           // Remove event listeners first
+           currentMap.off('click', handleMapClick);
+           console.log("Map click listener removed.");
+
+           // Check if the container exists before calling remove()
+           if (currentMap.getContainer()) {
+                console.log("Removing map instance...");
+                currentMap.remove(); // Remove map instance from the DOM
+                console.log("Map instance removed.");
+           } else {
+                console.log("Map container already removed, skipping map.remove().");
+           }
+         } catch (e) {
+           console.warn("Error during map cleanup:", e);
+         } finally {
+           mapRef.current = null; // Clear the ref AFTER cleanup attempts
+           console.log("Map ref cleared.");
          }
-         mapRef.current = null;
+      } else {
+         console.log("No map instance found in ref for cleanup.");
       }
       LRef.current = null; // Clean up L reference
       console.log("Map cleanup complete.");
@@ -447,9 +477,12 @@ const MealDeliveryPage = () => {
    // Resets markers and route, keeps input values
    const resetMapStateForNewOrigin = () => {
         if (!mapRef.current) return;
-        if (originMarker && mapRef.current.hasLayer(originMarker)) mapRef.current.removeLayer(originMarker);
-        if (destinationMarker && mapRef.current.hasLayer(destinationMarker)) mapRef.current.removeLayer(destinationMarker);
-        if (routeLine && mapRef.current.hasLayer(routeLine)) mapRef.current.removeLayer(routeLine);
+        const currentMap = mapRef.current; // Use local variable
+
+        // Check map and layer existence before removing
+        if (originMarker && currentMap.hasLayer(originMarker)) currentMap.removeLayer(originMarker);
+        if (destinationMarker && currentMap.hasLayer(destinationMarker)) currentMap.removeLayer(destinationMarker);
+        if (routeLine && currentMap.hasLayer(routeLine)) currentMap.removeLayer(routeLine);
 
         setOriginMarker(null);
         setDestinationMarker(null);
@@ -464,6 +497,7 @@ const MealDeliveryPage = () => {
        return;
     }
     const L = LRef.current;
+    const currentMap = mapRef.current; // Use local variable
 
     resetMapStateForNewOrigin(); // Clear existing markers/route before getting new location
 
@@ -483,7 +517,7 @@ const MealDeliveryPage = () => {
       setHasGpsPermission(true);
 
       // Add new marker for current location using the specific icon (red Locate icon)
-      const newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(mapRef.current);
+      const newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(currentMap);
       setOriginMarker(newMarker); // Still consider it the origin
 
       const geocodeResult = await reverseGeocode(coords.lat, coords.lng);
@@ -492,7 +526,7 @@ const MealDeliveryPage = () => {
 
       setOrigin(address);
 
-      mapRef.current.setView([coords.lat, coords.lng], 15);
+      currentMap.setView([coords.lat, coords.lng], 15);
       setClickMode('destination'); // Next click sets destination
 
       toast({
@@ -529,14 +563,15 @@ const MealDeliveryPage = () => {
 
     // Resets everything: markers, route, input values, map view
     const resetFullMap = () => {
-        if (mapRef.current && LRef.current) {
+        const currentMap = mapRef.current; // Use local variable
+        if (currentMap && LRef.current) {
            resetMapStateForNewOrigin(); // Clear markers and route
            setOrigin('');
            setDestination('');
            // Optionally reset GPS state if needed
            // setCurrentLocation(null);
            // setHasGpsPermission(null);
-           mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], 10);
+           currentMap.setView([defaultLocation.lat, defaultLocation.lng], 10);
            setClickMode('origin'); // Reset click mode to origin
            toast({ title: 'Carte Réinitialisée', description: 'Sélectionnez un nouveau point de départ.' });
         }
@@ -608,6 +643,7 @@ const MealDeliveryPage = () => {
    const handleAddressSearch = async (type: 'origin' | 'destination') => {
       if (!mapRef.current || !LRef.current) return;
       const L = LRef.current;
+      const currentMap = mapRef.current; // Use local variable
       const address = type === 'origin' ? origin : destination;
 
       if (!address || address.trim().length < 3) { // Basic validation
@@ -622,7 +658,6 @@ const MealDeliveryPage = () => {
 
       // Update or dismiss the toast
       geocodeToast.update({ id: geocodeToast.id, title: result ? "Adresse trouvée" : "Adresse non trouvée", description: result ? result.displayName : `Impossible de localiser: ${address}` });
-      // setTimeout(() => geocodeToast.dismiss(), 3000); // Optional: dismiss after delay
 
 
       if (result) {
@@ -632,7 +667,6 @@ const MealDeliveryPage = () => {
           let markerRef = type === 'origin' ? originMarker : destinationMarker;
           const setMarker = type === 'origin' ? setOriginMarker : setDestinationMarker;
           const setAddressState = type === 'origin' ? setOrigin : setDestination;
-          // const inputRef = type === 'origin' ? originInputRef : destinationInputRef;
 
           if (!icon) {
              toast({ variant: 'destructive', title: 'Erreur Icone', description: "L'icône de la carte n'a pas pu être chargée." });
@@ -640,25 +674,27 @@ const MealDeliveryPage = () => {
           }
 
           // Remove existing marker of the same type
-          if (markerRef && mapRef.current.hasLayer(markerRef)) { // Check before removing
-              mapRef.current.removeLayer(markerRef);
+          // Check map and layer existence before removing
+          if (markerRef && currentMap.hasLayer(markerRef)) {
+              currentMap.removeLayer(markerRef);
           }
            // Remove route line if address changes via search
-           if (routeLine && mapRef.current.hasLayer(routeLine)) { // Check before removing
-              mapRef.current.removeLayer(routeLine);
+           // Check map and layer existence before removing
+           if (routeLine && currentMap.hasLayer(routeLine)) {
+              currentMap.removeLayer(routeLine);
               setRouteLine(null);
           }
 
           // Add new marker
           const newMarker = L.marker([lat, lng], { icon: icon })
-              .addTo(mapRef.current)
+              .addTo(currentMap)
               .bindPopup(`${type === 'origin' ? 'Départ' : 'Destination'}: ${displayName.split(',')[0]}`)
               .openPopup();
 
           setMarker(newMarker);
           setAddressState(displayName); // Update state with full address from search
 
-          mapRef.current.setView([lat, lng], 15); // Center map on the result
+          currentMap.setView([lat, lng], 15); // Center map on the result
 
           // Set click mode based on what was just set
           if (type === 'origin' && !destinationMarker) {
@@ -675,10 +711,10 @@ const MealDeliveryPage = () => {
 
 
            // Automatically calculate route if both markers now exist
-           const currentOrigin = type === 'origin' ? newMarker : originMarker;
-           const currentDestination = type === 'destination' ? newMarker : destinationMarker;
-            if (currentOrigin && currentDestination) {
-                await calculateRoute(currentOrigin, currentDestination); // Pass markers explicitly
+           const currentOriginMarker = type === 'origin' ? newMarker : originMarker;
+           const currentDestinationMarker = type === 'destination' ? newMarker : destinationMarker;
+            if (currentOriginMarker && currentDestinationMarker) {
+                await calculateRoute(currentOriginMarker, currentDestinationMarker); // Pass markers explicitly
             }
 
       } else {
@@ -719,6 +755,7 @@ const MealDeliveryPage = () => {
            /* Ensure map container is visible */
             #map {
               min-height: 400px; /* Ensure map has a minimum height */
+              background-color: #eee; /* Light grey background while loading */
             }
         `}</style>
 
