@@ -155,7 +155,7 @@ const MealDeliveryPage = () => {
         }
 
         setOrigin(address); // Update state
-        if (originInputRef.current) originInputRef.current.value = address; // Update input field
+        if (originInputRef.current) originInputRef.current.value = address; // Update input field directly
 
         const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
          .addTo(mapRef.current)
@@ -173,7 +173,7 @@ const MealDeliveryPage = () => {
         }
 
        setDestination(address); // Update state
-       if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field
+       if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field directly
 
        const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
          .addTo(mapRef.current)
@@ -248,15 +248,25 @@ const MealDeliveryPage = () => {
 
     initializeMap();
 
-    return () => {
+    // Cleanup function
+    const cleanup = () => {
       if (mapRef.current) {
          // Clean up map event listener
          mapRef.current.off('click', handleMapClick);
-        mapRef.current.remove();
-        mapRef.current = null;
+         // Check if the map container still exists before removing
+         if (mapRef.current.getContainer()) {
+            try {
+              mapRef.current.remove();
+            } catch (e) {
+              console.warn("Error removing map:", e)
+            }
+         }
+         mapRef.current = null;
       }
       LRef.current = null; // Clean up L reference
     };
+
+    return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]); // Removed handleMapClick from dependencies as it's defined above now
 
@@ -272,7 +282,8 @@ const MealDeliveryPage = () => {
            if (permissionStatus.state === 'granted' && getLocationOnGrant) {
                 await getCurrentLocationAndSetOrigin();
            }
-           permissionStatus.onchange = () => {
+           // Use a variable for the listener function to remove it later if needed
+           const permissionChangeListener = () => {
                const granted = permissionStatus.state === 'granted';
                setHasGpsPermission(granted);
                 if (granted && getLocationOnGrant) {
@@ -282,9 +293,27 @@ const MealDeliveryPage = () => {
                     // Maybe remove the current location marker if it exists
                 }
            };
+           // Use try-catch for adding event listener
+           try {
+                permissionStatus.addEventListener('change', permissionChangeListener);
+           } catch (e) {
+                // Fallback for older browsers
+                permissionStatus.onchange = permissionChangeListener;
+           }
+
+           // Return a cleanup function for the permission listener
+           return () => {
+                try {
+                    permissionStatus.removeEventListener('change', permissionChangeListener);
+                } catch (e) {
+                    permissionStatus.onchange = null;
+                }
+           };
+
        } catch (error) {
            console.error("Error checking GPS permission:", error);
            setHasGpsPermission(false);
+           return () => {}; // Return empty cleanup on error
        }
    };
 
@@ -322,7 +351,7 @@ const MealDeliveryPage = () => {
 
       setOrigin(address);
       if (originInputRef.current) {
-        originInputRef.current.value = address;
+        originInputRef.current.value = address; // Update input field directly
       }
 
       mapRef.current.setView([coords.lat, coords.lng], 15);
@@ -454,7 +483,8 @@ const MealDeliveryPage = () => {
        await getCurrentLocationAndSetOrigin();
     } else {
        // If permission state is unknown, try to get it, possibly prompting the user
-       await checkGpsPermission(true); // Attempt to get location after check
+       let cleanupPermissionListener: (() => void) | undefined;
+       cleanupPermissionListener = await checkGpsPermission(true); // Attempt to get location after check
         if (navigator.permissions) {
              // Re-check permission status after attempting to get it
              const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
@@ -465,6 +495,10 @@ const MealDeliveryPage = () => {
              // Fallback if permissions API not supported, assume need to ask via dialog
              setIsGpsDialogOpen(true);
          }
+         // Clean up the listener if it was created
+        if (cleanupPermissionListener) {
+            cleanupPermissionListener();
+        }
     }
   };
 
@@ -560,7 +594,7 @@ const MealDeliveryPage = () => {
           setMarker(newMarker);
           setAddressState(displayName); // Update state with full address from search
           if (inputRef.current) {
-              inputRef.current.value = displayName; // Update input field
+              inputRef.current.value = displayName; // Update input field directly
           }
 
           mapRef.current.setView([lat, lng], 15); // Center map on the result
