@@ -193,7 +193,7 @@ const MealDeliveryPage = () => {
       LRef.current = null; // Clean up L reference
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]);
+  }, [toast]); // Removed handleMapClick from dependencies as it will be defined inside
 
 
   const checkGpsPermission = async (getLocationOnGrant = false) => {
@@ -466,8 +466,8 @@ const MealDeliveryPage = () => {
             setRouteLine(null);
         }
 
-        setOrigin(address);
-        if (originInputRef.current) originInputRef.current.value = address;
+        setOrigin(address); // Update state
+        if (originInputRef.current) originInputRef.current.value = address; // Update input field
 
         const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
          .addTo(mapRef.current)
@@ -484,8 +484,8 @@ const MealDeliveryPage = () => {
             setRouteLine(null);
         }
 
-       setDestination(address);
-       if (destinationInputRef.current) destinationInputRef.current.value = address;
+       setDestination(address); // Update state
+       if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field
 
        const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
          .addTo(mapRef.current)
@@ -811,3 +811,4 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
+
