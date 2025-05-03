@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, useCallback} from 'react'; // Import useCallback
 import 'leaflet/dist/leaflet.css';
 import ReactDOMServer from 'react-dom/server';
 import {Button} from '@/components/ui/button';
@@ -69,11 +69,26 @@ async function reverseGeocode(lat: number, lng: number): Promise<{ lat: number; 
       throw new Error(`Nominatim error: ${response.status}`);
     }
     const data = await response.json();
+    console.log("Reverse Geocode Result:", data); // Log the full result
     if (data && data.display_name) {
+        // Construct a more detailed address if possible
+        const addressParts = [];
+        if (data.address) {
+            if (data.address.road) addressParts.push(data.address.road);
+            if (data.address.house_number) addressParts.push(data.address.house_number);
+            if (data.address.city) addressParts.push(data.address.city);
+            else if (data.address.town) addressParts.push(data.address.town);
+            else if (data.address.village) addressParts.push(data.address.village);
+            if (data.address.postcode) addressParts.push(data.address.postcode);
+            if (data.address.country) addressParts.push(data.address.country);
+        }
+        const detailedAddress = addressParts.length > 0 ? addressParts.join(', ') : data.display_name;
+        const displayName = `${detailedAddress} (${lat.toFixed(5)}, ${lng.toFixed(5)})`; // Include coords
+
       return {
         lat: lat,
         lng: lng,
-        displayName: data.display_name,
+        displayName: displayName, // Use constructed or default display name + coords
       };
     } else {
        // Fallback if address not found
@@ -97,12 +112,14 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
       throw new Error(`Nominatim error: ${response.status}`);
     }
     const data = await response.json();
+    console.log("Geocode Result:", data); // Log the full result
     if (data && data.length > 0) {
       const result = data[0];
+      const displayName = `${result.display_name} (${parseFloat(result.lat).toFixed(5)}, ${parseFloat(result.lon).toFixed(5)})`; // Add coords
       return {
         lat: parseFloat(result.lat),
         lng: parseFloat(result.lon),
-        displayName: result.display_name,
+        displayName: displayName,
       };
     } else {
       return null; // Address not found
@@ -115,7 +132,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 
 
 const MealDeliveryPage = () => {
-  const { toast } = useToast(); // Moved inside the component
+  const { toast } = useToast();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
@@ -131,8 +148,9 @@ const MealDeliveryPage = () => {
   const [clickMode, setClickMode] = useState<'origin' | 'destination' | 'none'>('origin'); // Track next map click target
 
 
-   // Define handleMapClick within the component scope
-   const handleMapClick = async (e: L.LeafletMouseEvent) => {
+   // Define handleMapClick within the component scope, wrapped in useCallback
+   const handleMapClick = useCallback(async (e: L.LeafletMouseEvent) => {
+     console.log("Map clicked, current mode:", clickMode); // Debug log
      if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') {
        if (clickMode === 'none') {
             toast({ variant: 'default', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône 'Choisir sur la carte' (📍) près d'un champ d'adresse pour activer la sélection." });
@@ -144,7 +162,18 @@ const MealDeliveryPage = () => {
 
      const L = LRef.current;
      const latLng = e.latlng;
+     console.log("Clicked Coords:", latLng); // Debug log
+
+     // Show loading toast for reverse geocoding
+     const geocodeToast = toast({ title: "Recherche d'adresse...", description: `Lat: ${latLng.lat.toFixed(5)}, Lng: ${latLng.lng.toFixed(5)}` });
+
      const geocodeResult = await reverseGeocode(latLng.lat, latLng.lng);
+     console.log("Reverse Geocode Result in click handler:", geocodeResult); // Debug log
+
+     // Update or dismiss the toast
+     geocodeToast.update({ id: geocodeToast.id, title: geocodeResult ? "Adresse trouvée" : "Adresse non trouvée", description: geocodeResult ? geocodeResult.displayName : `Impossible de trouver une adresse pour ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}` });
+     // setTimeout(() => geocodeToast.dismiss(), 3000); // Optional: dismiss after a delay
+
      const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`;
 
      if (clickMode === 'origin' && originIcon) {
@@ -155,7 +184,7 @@ const MealDeliveryPage = () => {
         }
 
         setOrigin(address); // Update state
-        if (originInputRef.current) originInputRef.current.value = address; // Update input field directly
+        // REMOVED: if (originInputRef.current) originInputRef.current.value = address; // Update input field directly
 
         const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
          .addTo(mapRef.current)
@@ -173,7 +202,7 @@ const MealDeliveryPage = () => {
         }
 
        setDestination(address); // Update state
-       if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field directly
+       // REMOVED: if (destinationInputRef.current) destinationInputRef.current.value = address; // Update input field directly
 
        const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
          .addTo(mapRef.current)
@@ -186,18 +215,22 @@ const MealDeliveryPage = () => {
 
         // Automatically calculate route if origin also exists
         if (originMarker) {
-            await calculateRoute();
+             // Use calculateRoute directly here, ensure it's defined or passed correctly if needed elsewhere
+             console.log("Calculating route after destination set via click...");
+             await calculateRoute(); // Call calculateRoute directly
         }
 
      }
-   };
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [clickMode, mapLoaded, originIcon, destinationIcon, originMarker, destinationMarker, routeLine, toast]); // Dependencies for useCallback
 
 
   useEffect(() => {
     const initializeMap = async () => {
-      if (typeof window === 'undefined' || LRef.current) return;
+      if (typeof window === 'undefined' || LRef.current || mapRef.current) return; // Check mapRef too
 
       try {
+        console.log("Initializing map...");
         const L = (await import('leaflet')).default;
         LRef.current = L; // Store L reference
 
@@ -207,7 +240,14 @@ const MealDeliveryPage = () => {
         currentPositionIcon = createLucideIcon(Locate, 'text-red-600'); // Red for GPS
 
         const mapElement = document.getElementById('map');
-        if (!mapElement || mapRef.current) return;
+        if (!mapElement) {
+            console.error("Map element not found");
+            return;
+        }
+        if (mapRef.current) {
+            console.log("Map already initialized, skipping.");
+            return; // Already initialized
+        }
 
 
         const map = L.map(mapElement, {
@@ -228,11 +268,13 @@ const MealDeliveryPage = () => {
 
         mapRef.current = map;
         setMapLoaded(true);
+        console.log("Map initialized and loaded state set.");
 
         (map.getContainer()).style.cursor = 'crosshair';
 
         // Attach the click listener here
         map.on('click', handleMapClick);
+        console.log("Map click listener attached.");
 
         checkGpsPermission(false); // Don't get location on initial load
 
@@ -250,13 +292,16 @@ const MealDeliveryPage = () => {
 
     // Cleanup function
     const cleanup = () => {
+        console.log("Cleaning up map...");
       if (mapRef.current) {
          // Clean up map event listener
          mapRef.current.off('click', handleMapClick);
+         console.log("Map click listener removed.");
          // Check if the map container still exists before removing
          if (mapRef.current.getContainer()) {
             try {
               mapRef.current.remove();
+              console.log("Map instance removed.");
             } catch (e) {
               console.warn("Error removing map:", e)
             }
@@ -264,11 +309,12 @@ const MealDeliveryPage = () => {
          mapRef.current = null;
       }
       LRef.current = null; // Clean up L reference
+      console.log("Map cleanup complete.");
     };
 
     return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]); // Removed handleMapClick from dependencies as it's defined above now
+  }, [toast, handleMapClick]); // Include handleMapClick (wrapped in useCallback) in dependencies
 
 
   const checkGpsPermission = async (getLocationOnGrant = false) => {
@@ -350,9 +396,9 @@ const MealDeliveryPage = () => {
       newMarker.bindPopup(`Départ (Actuel): ${address.split(',')[0]}`).openPopup(); // Use simple popup
 
       setOrigin(address);
-      if (originInputRef.current) {
-        originInputRef.current.value = address; // Update input field directly
-      }
+      // REMOVED: if (originInputRef.current) {
+      //   originInputRef.current.value = address; // Update input field directly
+      // }
 
       mapRef.current.setView([coords.lat, coords.lng], 15);
       setClickMode('destination'); // Next click sets destination
@@ -534,8 +580,8 @@ const MealDeliveryPage = () => {
            resetMapStateForNewOrigin(); // Clear markers and route
            setOrigin('');
            setDestination('');
-           if (originInputRef.current) originInputRef.current.value = '';
-           if (destinationInputRef.current) destinationInputRef.current.value = '';
+           // REMOVED: if (originInputRef.current) originInputRef.current.value = '';
+           // REMOVED: if (destinationInputRef.current) destinationInputRef.current.value = '';
            // Optionally reset GPS state if needed
            // setCurrentLocation(null);
            // setHasGpsPermission(null);
@@ -559,7 +605,15 @@ const MealDeliveryPage = () => {
           return;
       }
 
+      // Show loading toast for geocoding
+      const geocodeToast = toast({ title: "Recherche d'adresse...", description: `Recherche de: ${address}` });
+
       const result = await geocodeAddress(address);
+
+      // Update or dismiss the toast
+      geocodeToast.update({ id: geocodeToast.id, title: result ? "Adresse trouvée" : "Adresse non trouvée", description: result ? result.displayName : `Impossible de localiser: ${address}` });
+      // setTimeout(() => geocodeToast.dismiss(), 3000); // Optional: dismiss after delay
+
 
       if (result) {
           const { lat, lng, displayName } = result;
@@ -593,9 +647,9 @@ const MealDeliveryPage = () => {
 
           setMarker(newMarker);
           setAddressState(displayName); // Update state with full address from search
-          if (inputRef.current) {
-              inputRef.current.value = displayName; // Update input field directly
-          }
+          // REMOVED: if (inputRef.current) {
+          //     inputRef.current.value = displayName; // Update input field directly
+          // }
 
           mapRef.current.setView([lat, lng], 15); // Center map on the result
 
@@ -674,8 +728,8 @@ const MealDeliveryPage = () => {
                     type="text"
                     className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-32" // Increased padding-right for 3 icons
                     placeholder="Entrer l'adresse, utiliser le GPS, ou cliquer sur la carte"
-                    value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
+                    value={origin} // Controlled input: value comes from state
+                    onChange={(e) => setOrigin(e.target.value)} // Update state on change
                     ref={originInputRef}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch('origin')}
                   />
@@ -741,8 +795,8 @@ const MealDeliveryPage = () => {
                     type="text"
                     className="shadow-sm focus:ring-primary focus:border-primary block w-full sm:text-sm border-gray-300 rounded-md pr-20" // Padding for 2 icons
                     placeholder="Entrer l'adresse ou cliquer sur la carte"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
+                    value={destination} // Controlled input: value comes from state
+                    onChange={(e) => setDestination(e.target.value)} // Update state on change
                     ref={destinationInputRef}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddressSearch('destination')}
                   />
