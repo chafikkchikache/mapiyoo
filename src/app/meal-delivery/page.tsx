@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, {useState, useRef, useEffect, useCallback} from 'react'; // Import useCallback
@@ -18,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {Locate, MapPin, MapPinCheck, Search} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, MapPinCheck for confirmed Destination
+import {Locate, MapPin, MapPinCheck, Search, Pin, PinOff} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, MapPinCheck for confirmed Destination
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import type L from 'leaflet'; // Import Leaflet type
 
@@ -37,21 +36,22 @@ const defaultLocation = {
 let LRef: React.MutableRefObject<typeof L | null> = { current: null };
 
 // Function to create Leaflet DivIcon from Lucide React component
-const createLucideIcon = (IconComponent: React.ElementType, colorClass = 'text-primary'): L.DivIcon | undefined => {
+const createLucideIcon = (IconComponent: React.ElementType, colorClass = 'text-primary', size = 6): L.DivIcon | undefined => {
   if (!LRef.current) return undefined; // Leaflet not loaded yet
   const L = LRef.current;
   const iconHtml = ReactDOMServer.renderToStaticMarkup(
     // Add a wrapper div to ensure proper styling and centering if needed
     React.createElement('div', { style: { display: 'inline-block', position: 'relative', bottom: '-5px' /* Adjust vertical alignment */ } },
-      React.createElement(IconComponent, { className: `h-6 w-6 ${colorClass}` })
+      React.createElement(IconComponent, { className: `h-${size} w-${size} ${colorClass}` })
     )
   );
+  const iconSizeValue = size * 4; // Adjust based on h-6/w-6 -> 24px, needs multiplier
   return L.divIcon({
     html: iconHtml,
     className: 'leaflet-lucide-icon', // Custom class to remove default styles
-    iconSize: [24, 24], // Match h-6 w-6
-    iconAnchor: [12, 24], // Anchor point (bottom center)
-    popupAnchor: [0, -24] // Popup position relative to anchor
+    iconSize: [iconSizeValue, iconSizeValue], // Match h-X w-X
+    iconAnchor: [iconSizeValue / 2, iconSizeValue], // Anchor point (bottom center)
+    popupAnchor: [0, -iconSizeValue] // Popup position relative to anchor
   });
 };
 
@@ -422,9 +422,9 @@ const MealDeliveryPage = () => {
 
         // Initialize icons *after* L is loaded
         console.log("Creating Lucide icons for Leaflet...");
-        originIcon = createLucideIcon(MapPin, 'text-blue-600'); // Blue for origin
-        destinationIcon = createLucideIcon(MapPinCheck, 'text-green-600'); // Green for destination
-        currentPositionIcon = createLucideIcon(Locate, 'text-red-600'); // Red for GPS
+        originIcon = createLucideIcon(Pin, 'text-blue-600', 8); // Blue for origin, larger size
+        destinationIcon = createLucideIcon(PinOff, 'text-green-600', 8); // Green for destination, larger size
+        currentPositionIcon = createLucideIcon(Locate, 'text-red-600', 8); // Red for GPS, larger size
          if (!originIcon || !destinationIcon || !currentPositionIcon) {
           console.error("Failed to create one or more Leaflet icons.");
           toast({ variant: 'destructive', title: 'Erreur Icone Carte', description: "Impossible de charger les icônes pour la carte." });
@@ -465,10 +465,20 @@ const MealDeliveryPage = () => {
         L.control.attribution({ position: 'bottomright', prefix: '' }).addTo(map);
          console.log("Attribution control added.");
 
-
         mapRef.current = map; // Assign map instance to ref
-        setMapLoaded(true);
-        console.log("Map initialized and loaded state set.");
+
+        // Call invalidateSize AFTER map is fully initialized and added to DOM
+        // Use setTimeout to ensure it runs after the current render cycle completes
+        setTimeout(() => {
+            if (mapRef.current) {
+                 console.log("Calling map.invalidateSize()...");
+                mapRef.current.invalidateSize();
+                 console.log("map.invalidateSize() called.");
+                 setMapLoaded(true); // Set map loaded state AFTER invalidateSize
+                 console.log("Map initialized and loaded state set AFTER invalidateSize.");
+            }
+        }, 0);
+
 
         // Safely access container after mapRef is set and set cursor
         const mapContainer = map.getContainer();
@@ -927,7 +937,7 @@ const MealDeliveryPage = () => {
        if (result) {
            console.log(`Geocode successful for ${type}:`, result);
            const { lat, lng, displayName } = result;
-           // Use blue MapPin for origin search result, green MapPinCheck for destination
+           // Use blue Pin for origin search result, green PinOff for destination
            const iconToUse = type === 'origin' ? originIcon : destinationIcon;
            let markerRef = type === 'origin' ? originMarker : destinationMarker;
            const setMarkerState = type === 'origin' ? setOriginMarker : setDestinationMarker;
