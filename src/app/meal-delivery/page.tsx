@@ -62,7 +62,7 @@ let currentPositionIcon: L.DivIcon | undefined; // Specific icon for GPS locatio
 
 // Reverse Geocoding function using Nominatim
 async function reverseGeocode(lat: number, lng: number): Promise<{ lat: number; lng: number; displayName: string } | null> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fr`;
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=fr&addressdetails=1`; // Add addressdetails=1
   console.log(`Reverse geocoding for: ${lat}, ${lng}`); // Log coords
   try {
     const response = await fetch(url);
@@ -71,50 +71,50 @@ async function reverseGeocode(lat: number, lng: number): Promise<{ lat: number; 
     }
     const data = await response.json();
     console.log("Reverse Geocode Raw Result:", data); // Log the full raw result
-    if (data && data.display_name) {
-        // Construct a more detailed address if possible
-        const addressParts = [];
-        if (data.address) {
-             if (data.address.road) addressParts.push(data.address.road);
-            if (data.address.house_number) addressParts.push(data.address.house_number);
-            // Prefer more specific city/town/village if available
-            if (data.address.city) addressParts.push(data.address.city);
-            else if (data.address.town) addressParts.push(data.address.town);
-            else if (data.address.village) addressParts.push(data.address.village);
-            else if (data.address.suburb) addressParts.push(data.address.suburb); // Add suburb as fallback
 
-            if (data.address.postcode) addressParts.push(data.address.postcode);
-            if (data.address.country) addressParts.push(data.address.country);
+    let displayName = `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`; // Fallback display name
+
+    if (data && data.address) {
+        // Construct a more detailed address in the desired format: 'ville, street, province, code postal, pays'
+        const address = data.address;
+        const parts = [
+            address.city || address.town || address.village || address.hamlet, // Ville
+            address.road || address.footway || address.pedestrian, // Street/Road
+            address.state || address.region, // Province/State
+            address.postcode, // Code postal
+            address.country, // Pays
+        ];
+        // Filter out undefined/null parts and join
+        const filteredParts = parts.filter(part => part);
+        if (filteredParts.length > 0) {
+            displayName = filteredParts.join(', ');
+        } else if (data.display_name) {
+             // Fallback to display_name if address parts are insufficient
+             displayName = data.display_name.split(',').slice(0, 3).join(','); // Take first few parts as fallback
         }
-        const detailedAddress = addressParts.length > 0 ? addressParts.join(', ') : data.display_name.split(',')[0]; // Use first part of display_name as fallback if address parts are empty
-        // Include coords in the display name for clarity/debugging only if needed, can be removed for cleaner UI
-        // const displayName = `${detailedAddress} (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
-        const displayName = detailedAddress; // Use just the constructed address for cleaner display
-
        console.log("Formatted Address:", displayName); // Log the formatted address
+    } else {
+       console.warn("Reverse geocode: No address details found in response.");
+    }
 
       return {
         lat: lat,
         lng: lng,
-        displayName: displayName, // Use constructed address
+        displayName: displayName, // Use constructed or fallback address
       };
-    } else {
-       console.warn("Reverse geocode: No display_name found in response.");
-       // Fallback if address not found or display_name missing
-       const coordsStr = `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-       return { lat: lat, lng: lng, displayName: coordsStr };
-    }
+
   } catch (error) {
     console.error('Reverse geocoding failed:', error);
-    // Fallback on error
+    // Fallback on error, return coordinates
     const coordsStr = `Coordonnées: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     return { lat: lat, lng: lng, displayName: coordsStr };
   }
 }
 
+
 // Geocoding function using Nominatim search
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number; displayName: string } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=fr&countrycodes=ma`; // Limit search, prioritize FR/MA
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&accept-language=fr&countrycodes=ma&addressdetails=1`; // Limit search, prioritize FR/MA, get details
   console.log(`Geocoding address: ${address}`);
   try {
     const response = await fetch(url);
@@ -123,23 +123,31 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
     }
     const data = await response.json();
     console.log("Geocode Raw Result:", data); // Log the full raw result
+
     if (data && data.length > 0) {
-      const result = data[0];
-      // Format display name similarly to reverse geocode
-       const addressParts = [];
+        const result = data[0];
+        let displayName = `Coordonnées: ${parseFloat(result.lat).toFixed(5)}, ${parseFloat(result.lon).toFixed(5)}`; // Fallback
+
         if (result.address) {
-            if (result.address.road) addressParts.push(result.address.road);
-            if (result.address.house_number) addressParts.push(result.address.house_number);
-            if (result.address.city) addressParts.push(result.address.city);
-            else if (result.address.town) addressParts.push(result.address.town);
-            else if (result.address.village) addressParts.push(result.address.village);
-            else if (result.address.suburb) addressParts.push(result.address.suburb);
-            if (result.address.postcode) addressParts.push(result.address.postcode);
-            if (result.address.country) addressParts.push(result.address.country);
+            // Format display name similarly to reverse geocode
+            const addressDetails = result.address;
+            const parts = [
+                addressDetails.city || addressDetails.town || addressDetails.village || addressDetails.hamlet, // Ville
+                addressDetails.road || addressDetails.footway || addressDetails.pedestrian, // Street/Road
+                addressDetails.state || addressDetails.region, // Province/State
+                addressDetails.postcode, // Code postal
+                addressDetails.country, // Pays
+            ];
+            const filteredParts = parts.filter(part => part);
+             if (filteredParts.length > 0) {
+                displayName = filteredParts.join(', ');
+            } else if (result.display_name) {
+                 displayName = result.display_name.split(',').slice(0, 3).join(','); // Fallback
+            }
+        } else if (result.display_name) {
+             displayName = result.display_name.split(',').slice(0, 3).join(','); // Fallback if no address details
         }
-       const detailedAddress = addressParts.length > 0 ? addressParts.join(', ') : result.display_name.split(',')[0];
-      // const displayName = `${detailedAddress} (${parseFloat(result.lat).toFixed(5)}, ${parseFloat(result.lon).toFixed(5)})`;
-      const displayName = detailedAddress; // Cleaner display
+
        console.log("Formatted Address from Geocode:", displayName);
 
       return {
@@ -165,14 +173,13 @@ const MealDeliveryPage = () => {
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
   const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false);
-  const [mapLoaded, setMapLoaded] = useState(false); // State to track map loading status
   const mapRef = useRef<L.Map | null>(null);
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
   const [originMarker, setOriginMarker] = useState<L.Marker | null>(null);
   const [destinationMarker, setDestinationMarker] = useState<L.Marker | null>(null);
   const [routeLine, setRouteLine] = useState<L.GeoJSON | null>(null);
-  const [clickMode, setClickMode] = useState<'origin' | 'destination' | 'none'>('none'); // Track next map click target, default to none
+  const [clickMode, setClickMode] = useState<'origin' | 'destination' | 'none'>('none'); // Track next map click target
 
 
    // Define calculateRoute first so handleMapClick can use it
@@ -190,13 +197,12 @@ const MealDeliveryPage = () => {
            return;
        }
        const L = LRef.current;
-       const currentMap = mapRef.current; // Use local var
+       const currentMap = mapRef.current;
 
        const originCoords = originToUse.getLatLng();
        const destinationCoords = destinationToUse.getLatLng();
        console.log(`Calculating route from (${originCoords.lat}, ${originCoords.lng}) to (${destinationCoords.lat}, ${destinationCoords.lng})`);
 
-       // Show loading toast for route calculation
        const routeToast = toast({ title: "Calcul de l'itinéraire..." });
 
        try {
@@ -214,32 +220,24 @@ const MealDeliveryPage = () => {
            if (data.routes && data.routes.length > 0) {
                const route = data.routes[0];
                const geoJson = route.geometry;
-               const distanceKm = (route.distance / 1000).toFixed(2); // Distance in km
-               const durationMinutes = Math.round(route.duration / 60); // Duration in minutes
+               const distanceKm = (route.distance / 1000).toFixed(2);
+               const durationMinutes = Math.round(route.duration / 60);
 
-               // Check map instance and layer existence before removing
-               if (currentMap && routeLine && currentMap.hasLayer(routeLine)) {
+               if (routeLine && currentMap.hasLayer(routeLine)) {
                    console.log("Removing existing route line.");
                    currentMap.removeLayer(routeLine);
                }
 
-                // Explicit check before adding the new layer
-                if (!mapRef.current) {
-                    console.warn("Map instance became unavailable before adding route line.");
-                    throw new Error("Map instance is not available.");
-                }
-
-                 console.log("Adding new route line.");
+               console.log("Adding new route line.");
                const newRouteLine = L.geoJSON(geoJson, {
                    style: { color: 'hsl(var(--primary))', weight: 5 },
-               }).addTo(mapRef.current); // Use checked mapRef.current
+               }).addTo(currentMap);
 
-               newRouteLine.bindPopup(`Distance: ${distanceKm} km<br>Durée: ~${durationMinutes} min`); // Don't open popup by default, let user click
-               setRouteLine(newRouteLine); // Update state
+               newRouteLine.bindPopup(`Distance: ${distanceKm} km<br>Durée: ~${durationMinutes} min`);
+               setRouteLine(newRouteLine);
 
-               mapRef.current.fitBounds(newRouteLine.getBounds()); // Use checked mapRef.current
+               currentMap.fitBounds(newRouteLine.getBounds());
 
-                // Close marker popups if open
                if(originToUse.isPopupOpen()) originToUse.closePopup();
                if(destinationToUse.isPopupOpen()) destinationToUse.closePopup();
 
@@ -267,54 +265,49 @@ const MealDeliveryPage = () => {
                title: 'Erreur de calcul d’itinéraire',
                description: `Une erreur s’est produite lors du calcul de l’itinéraire. ${error.message || ''}`,
            });
-           // Ensure map interactivity isn't blocked by a stale loading state
        }
    }, [originMarker, destinationMarker, routeLine, toast]);
 
 
    // Define handleMapClick within the component scope, wrapped in useCallback
    const handleMapClick = useCallback(async (e: L.LeafletMouseEvent) => {
-     console.log("Map clicked, current mode:", clickMode); // Debug log
-     if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') { // Check mapLoaded
+     console.log("Map clicked, current mode:", clickMode);
+     if (!mapRef.current || !LRef.current || clickMode === 'none') {
        if (clickMode === 'none') {
             toast({ variant: 'default', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône 'Choisir sur la carte' (📍) près d'un champ d'adresse pour activer la sélection." });
        } else {
-           console.warn("Map click ignored: Map not loaded or ready.", { mapLoaded, LRef: !!LRef.current, mapRef: !!mapRef.current });
+           console.warn("Map click ignored: Map not loaded or ready.", { LRef: !!LRef.current, mapRef: !!mapRef.current });
             toast({ variant: 'destructive', title: 'Carte non prête' });
        }
        return;
      }
 
      const L = LRef.current;
-     const currentMap = mapRef.current; // Use local variable
+     const currentMap = mapRef.current;
      const latLng = e.latlng;
-     console.log("Clicked Coords:", latLng); // Debug log
+     console.log("Clicked Coords:", latLng);
 
-     // Show loading toast for reverse geocoding
      const geocodeToast = toast({ title: "Recherche d'adresse...", description: `Lat: ${latLng.lat.toFixed(5)}, Lng: ${latLng.lng.toFixed(5)}` });
 
      const geocodeResult = await reverseGeocode(latLng.lat, latLng.lng);
-     console.log("Reverse Geocode Result in click handler:", geocodeResult); // Debug log
+     console.log("Reverse Geocode Result in click handler:", geocodeResult);
 
-     // Update or dismiss the toast based on geocode result
      geocodeToast.update({
         id: geocodeToast.id,
         title: geocodeResult ? "Adresse trouvée" : "Adresse non trouvée",
-        description: geocodeResult ? geocodeResult.displayName : `Impossible de trouver une adresse pour ${latLng.lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        description: geocodeResult ? geocodeResult.displayName : `Impossible de trouver une adresse pour ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`,
         variant: geocodeResult ? 'default' : 'destructive'
       });
 
 
-     // Proceed only if geocoding was successful (even if it's just coordinates)
      if (!geocodeResult) {
          console.warn("Map click aborted: Reverse geocoding failed.");
-         setClickMode('none'); // Reset click mode if geocoding fails
+         // Keep click mode active, user might click again
+         // setClickMode('none');
          return;
      }
 
-      // This is the address we'll use for the input field and marker popup
      const address = geocodeResult.displayName;
-
 
      if (clickMode === 'origin') {
         if (!originIcon) {
@@ -324,13 +317,11 @@ const MealDeliveryPage = () => {
             return;
         }
         console.log("Setting Origin...");
-        // Check map instance and layer existence before removing
-        if (currentMap && originMarker && currentMap.hasLayer(originMarker)) {
+        if (originMarker && currentMap.hasLayer(originMarker)) {
             console.log("Removing previous origin marker.");
              try { currentMap.removeLayer(originMarker); } catch (error) { console.warn("Error removing origin marker:", error); }
         }
-        // Remove route if origin changes
-        if (currentMap && routeLine && currentMap.hasLayer(routeLine)) {
+        if (routeLine && currentMap.hasLayer(routeLine)) {
              console.log("Removing route line because origin changed.");
              try { currentMap.removeLayer(routeLine); } catch (error) { console.warn("Error removing route line:", error); }
             setRouteLine(null);
@@ -339,31 +330,28 @@ const MealDeliveryPage = () => {
         setOrigin(address); // Update STATE for the input field
 
          try {
-              // Ensure map instance is still valid before adding layer
-                if (!mapRef.current) {
-                    console.error("Map instance became unavailable before adding origin marker.");
-                    throw new Error("Map instance is not available.");
-                }
              console.log("Adding new origin marker.");
             const newOriginMarker = L.marker([latLng.lat, latLng.lng], { icon: originIcon })
-                .addTo(mapRef.current) // Use checked mapRef.current
-                .bindPopup(`Départ: ${address.split(',')[0]}`) // Show only first part of address
+                .addTo(currentMap)
+                .bindPopup(`Départ: ${address.split(',')[0]}`)
                 .openPopup();
-            setOriginMarker(newOriginMarker); // Update state with the NEW marker
+            setOriginMarker(newOriginMarker);
 
-            console.log("Switching click mode to destination.");
-            setClickMode('destination'); // Next click should set destination
-            toast({ title: "Point de Départ Défini", description: "Cliquez maintenant sur la carte pour définir la destination, ou utilisez la recherche." });
+            // Don't automatically switch mode, allow multiple clicks for origin
+            // console.log("Switching click mode to destination.");
+            // setClickMode('destination');
+            // toast({ title: "Point de Départ Défini", description: "Cliquez maintenant sur la carte pour définir la destination, ou utilisez la recherche." });
+            toast({ title: "Point de Départ Mis à Jour", description: "Cliquez à nouveau pour ajuster ou activez la sélection de destination." });
 
-            // If destination already exists, calculate route immediately
+
             if (destinationMarker) {
                 console.log("Calculating route after origin set via click (destination exists)...");
-                await calculateRoute(newOriginMarker, destinationMarker); // Pass the new origin
+                await calculateRoute(newOriginMarker, destinationMarker);
             }
          } catch (error: any) {
              console.error("Error adding origin marker:", error);
              toast({ variant: "destructive", title: "Erreur Marqueur Départ", description: `Impossible d'ajouter le marqueur de départ. ${error.message || ''}` });
-             setClickMode('none'); // Reset click mode on error
+             setClickMode('none');
          }
 
 
@@ -375,60 +363,54 @@ const MealDeliveryPage = () => {
             return;
         }
        console.log("Setting Destination...");
-        // Check map instance and layer existence before removing
-        if (currentMap && destinationMarker && currentMap.hasLayer(destinationMarker)) {
+        if (destinationMarker && currentMap.hasLayer(destinationMarker)) {
             console.log("Removing previous destination marker.");
              try { currentMap.removeLayer(destinationMarker); } catch (error) { console.warn("Error removing destination marker:", error); }
         }
-        // Remove route if destination changes
-        if (currentMap && routeLine && currentMap.hasLayer(routeLine)) {
+        if (routeLine && currentMap.hasLayer(routeLine)) {
              console.log("Removing route line because destination changed.");
              try { currentMap.removeLayer(routeLine); } catch (error) { console.warn("Error removing route line:", error); }
             setRouteLine(null);
         }
 
-       setDestination(address); // Update STATE for the input field
+       setDestination(address);
 
          try {
-              // Ensure map instance is still valid before adding layer
-                if (!mapRef.current) {
-                    console.error("Map instance became unavailable before adding destination marker.");
-                    throw new Error("Map instance is not available.");
-                }
              console.log("Adding new destination marker.");
              const newDestinationMarker = L.marker([latLng.lat, latLng.lng], { icon: destinationIcon })
-               .addTo(mapRef.current) // Use checked mapRef.current
-               .bindPopup(`Destination: ${address.split(',')[0]}`) // Show only first part of address
+               .addTo(currentMap)
+               .bindPopup(`Destination: ${address.split(',')[0]}`)
                .openPopup();
-             setDestinationMarker(newDestinationMarker); // Update state with the NEW marker
+             setDestinationMarker(newDestinationMarker);
 
-             console.log("Deactivating click mode.");
-             setClickMode('none'); // Deactivate map clicking after destination is set
-             toast({ title: "Destination Définie", description: "Vous pouvez maintenant calculer l'itinéraire ou ajuster les points." });
+             // Don't automatically deactivate mode, allow multiple clicks for destination
+             // console.log("Deactivating click mode.");
+             // setClickMode('none');
+             // toast({ title: "Destination Définie", description: "Vous pouvez maintenant calculer l'itinéraire ou ajuster les points." });
+             toast({ title: "Destination Mise à Jour", description: "Cliquez à nouveau pour ajuster ou activez la sélection de départ." });
 
-              // Automatically calculate route if origin also exists
+
               if (originMarker) {
                    console.log("Calculating route after destination set via click...");
-                   await calculateRoute(originMarker, newDestinationMarker); // Pass the new destination
+                   await calculateRoute(originMarker, newDestinationMarker);
               }
          } catch (error: any) {
              console.error("Error adding destination marker:", error);
              toast({ variant: "destructive", title: "Erreur Marqueur Destination", description: `Impossible d'ajouter le marqueur de destination. ${error.message || ''}` });
-              setClickMode('none'); // Reset click mode on error
+              setClickMode('none');
          }
 
      } else {
-         // Should not happen if initial check passed, but good for safety
          console.warn("Map clicked but clickMode was neither 'origin' nor 'destination'. Mode:", clickMode);
-         setClickMode('none'); // Reset just in case
+         setClickMode('none');
      }
-   }, [mapLoaded, clickMode, originMarker, destinationMarker, routeLine, toast, calculateRoute]);
+   }, [clickMode, originMarker, destinationMarker, routeLine, toast, calculateRoute]); // Removed mapLoaded dependency
 
 
   useEffect(() => {
     const initializeMap = async () => {
-       if (typeof window === 'undefined' || !document.getElementById('map') || mapRef.current || mapLoaded) { // Check mapLoaded
-         console.log("Map initialization skipped:", { hasWindow: typeof window !== 'undefined', mapElementExists: !!document.getElementById('map'), mapRefExists: !!mapRef.current, mapAlreadyLoaded: mapLoaded });
+       if (typeof window === 'undefined' || !document.getElementById('map') || mapRef.current ) {
+         console.log("Map initialization skipped:", { hasWindow: typeof window !== 'undefined', mapElementExists: !!document.getElementById('map'), mapRefExists: !!mapRef.current });
          return;
       }
 
@@ -445,7 +427,6 @@ const MealDeliveryPage = () => {
          if (!originIcon || !destinationIcon || !currentPositionIcon) {
           console.error("Failed to create one or more Leaflet icons.");
           toast({ variant: 'destructive', title: 'Erreur Icone Carte', description: "Impossible de charger les icônes pour la carte." });
-          // Potentially return early or handle this state
         } else {
              console.log("Leaflet icons created successfully.");
         }
@@ -456,7 +437,6 @@ const MealDeliveryPage = () => {
             return;
         }
 
-        // Check again if mapRef was set concurrently
         if (mapRef.current) {
             console.log("Map already initialized (concurrently), skipping.");
             return;
@@ -466,52 +446,50 @@ const MealDeliveryPage = () => {
         const map = L.map(mapElement, {
           center: [defaultLocation.lat, defaultLocation.lng],
           zoom: 10,
-          doubleClickZoom: false, // Keep double click zoom disabled
-          closePopupOnClick: true, // Allow popups to close normally
-          attributionControl: false, // Disable default attribution
+          doubleClickZoom: false,
+          closePopupOnClick: true,
+          attributionControl: false,
         });
          console.log("Leaflet map instance created.");
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { // Use https and standard subdomains
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
          console.log("Tile layer added.");
 
-        // Add attribution control manually to ensure it's present but minimal
         L.control.attribution({ position: 'bottomright', prefix: '' }).addTo(map);
          console.log("Attribution control added.");
 
-        mapRef.current = map; // Assign map instance to ref
+        mapRef.current = map;
 
-        // Use requestAnimationFrame to ensure invalidateSize runs after the DOM is ready
-        requestAnimationFrame(() => {
-            if (mapRef.current) {
-                console.log("Calling map.invalidateSize() via requestAnimationFrame...");
-                mapRef.current.invalidateSize();
-                console.log("map.invalidateSize() called.");
-                setMapLoaded(true); // Set map loaded state AFTER invalidateSize
-                console.log("Map initialized and loaded state set AFTER invalidateSize.");
-            }
-        });
+        // No need for invalidateSize here, let Leaflet handle it.
+        // map.invalidateSize(); // Remove this line
+        // console.log("map.invalidateSize() called.");
+        // setMapLoaded(true); // Remove this line
+        // console.log("Map initialized and loaded state set.");
 
 
-        // Safely access container after mapRef is set and set cursor
         const mapContainer = map.getContainer();
         if (mapContainer) {
-          mapContainer.style.cursor = 'crosshair'; // Set cursor style
+          mapContainer.style.cursor = 'crosshair';
            console.log("Map container cursor set to crosshair.");
         } else {
             console.warn("Map container not found immediately after initialization.");
         }
 
-        // Attach the click listener here - IMPORTANT: Use the useCallback version
         map.on('click', handleMapClick);
         console.log("Map 'click' listener attached.");
 
-        // Check GPS permission state on load, but don't try to get location yet
-        checkGpsPermission(false);
-        console.log("Initial GPS permission check performed.");
+        // Prompt for GPS permission on initial load if not determined
+        if (hasGpsPermission === null) {
+            console.log("Checking initial GPS permission and prompting if needed.");
+            checkGpsPermission(true); // Check permission, true might prompt
+        } else {
+             console.log("Initial GPS permission already checked or determined:", hasGpsPermission);
+             // Optionally, ask again if denied previously
+             // if (hasGpsPermission === false) setIsGpsDialogOpen(true);
+        }
 
 
       } catch (error) {
@@ -526,23 +504,19 @@ const MealDeliveryPage = () => {
 
     initializeMap();
 
-    // Cleanup function
     const cleanup = () => {
       console.log("Cleaning up map...");
-      const currentMap = mapRef.current; // Capture current ref value
+      const currentMap = mapRef.current;
       if (currentMap) {
          console.log("Map instance found for cleanup.");
          try {
-           // Remove event listeners first - IMPORTANT: Use the same function reference
            currentMap.off('click', handleMapClick);
            console.log("Map 'click' listener removed.");
 
-           // Check if the container exists before calling remove()
-           // Also check if the map element still exists in the DOM
            const mapElement = document.getElementById('map');
            if (mapElement && currentMap.getContainer() && mapElement === currentMap.getContainer()) {
                 console.log("Removing map instance...");
-                currentMap.remove(); // Remove map instance from the DOM
+                currentMap.remove();
                 console.log("Map instance removed.");
            } else {
                 console.log("Map container already removed, detached, or element not found, skipping map.remove().");
@@ -550,23 +524,22 @@ const MealDeliveryPage = () => {
          } catch (e) {
            console.warn("Error during map cleanup:", e);
          } finally {
-           mapRef.current = null; // Clear the ref AFTER cleanup attempts
+           mapRef.current = null;
            console.log("Map ref cleared.");
          }
       } else {
          console.log("No map instance found in ref for cleanup.");
       }
-      LRef.current = null; // Clean up L reference
-      originIcon = undefined; // Clean up icons
+      LRef.current = null;
+      originIcon = undefined;
       destinationIcon = undefined;
       currentPositionIcon = undefined;
-      setMapLoaded(false); // Reset map loaded state
+      // setMapLoaded(false); // Remove this line
       console.log("Map cleanup complete.");
     };
 
-    // Return the cleanup function to be called on component unmount
     return cleanup;
-  }, [toast, handleMapClick]); // handleMapClick is now a dependency due to useCallback, mapLoaded added
+  }, [toast, handleMapClick, hasGpsPermission]); // Added hasGpsPermission
 
 
   const checkGpsPermission = async (getLocationOnGrant = false) => {
@@ -574,46 +547,43 @@ const MealDeliveryPage = () => {
       if (!navigator.geolocation) {
            console.warn("Geolocation API not supported by this browser.");
           setHasGpsPermission(false);
-          return () => {}; // Return empty cleanup
+          setIsGpsDialogOpen(true); // Show dialog if not supported
+          return () => {};
       }
        try {
            const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
            console.log(`Initial GPS permission state: ${permissionStatus.state}`);
            const granted = permissionStatus.state === 'granted';
-           setHasGpsPermission(granted);
+           const denied = permissionStatus.state === 'denied';
+           const prompt = permissionStatus.state === 'prompt';
+
+           setHasGpsPermission(granted); // Update state based on current status
 
            if (granted && getLocationOnGrant) {
                 console.log("Permission granted and getLocationOnGrant is true, getting location...");
-                // Don't await here, let it run in background, but handle potential errors inside
                 getCurrentLocationAndSetOrigin();
-           } else if (permissionStatus.state === 'prompt' && getLocationOnGrant) {
-               console.log("Permission state is 'prompt', getCurrentLocation will trigger the browser prompt.");
-               // Call it directly, it will trigger the prompt
-               getCurrentLocationAndSetOrigin();
-           } else if (permissionStatus.state === 'denied') {
+           } else if (prompt && getLocationOnGrant) {
+               console.log("Permission state is 'prompt', showing custom dialog first.");
+                setIsGpsDialogOpen(true); // Show our dialog to explain *before* browser prompt
+           } else if (denied) {
                console.log("GPS permission denied.");
-               // Optionally show a specific message or guide user to settings
+               setIsGpsDialogOpen(true); // Show dialog explaining it's denied
            }
 
 
-           // Use a variable for the listener function to remove it later if needed
            const permissionChangeListener = () => {
                console.log(`GPS permission state changed to: ${permissionStatus.state}`);
                const isGrantedNow = permissionStatus.state === 'granted';
                setHasGpsPermission(isGrantedNow);
-                if (isGrantedNow && getLocationOnGrant) {
-                    // Only get location if initially requested or user manually triggers again
-                    console.log("Permission granted via listener, getting location if requested.");
-                    // getCurrentLocationAndSetOrigin(); // Avoid auto-getting location on change unless explicitly desired
-                } else if (!isGrantedNow) {
+                if (!isGrantedNow) {
                     setCurrentLocation(null);
                     // Consider removing the current location marker if it exists and permission is revoked
                     console.log("GPS permission revoked or denied via listener.");
+                    setIsGpsDialogOpen(true); // Show dialog again if revoked/denied later
                 }
            };
 
            let cleanupFunc = () => {};
-           // Use try-catch for adding event listener
            try {
                 permissionStatus.addEventListener('change', permissionChangeListener);
                  console.log("Added 'change' listener for geolocation permission.");
@@ -623,35 +593,32 @@ const MealDeliveryPage = () => {
                          console.log("Removed 'change' listener for geolocation permission.");
                     } catch (e) {
                         console.warn("Error removing geolocation event listener:", e);
-                         try { permissionStatus.onchange = null; } catch (e2) {} // Fallback removal
+                         try { permissionStatus.onchange = null; } catch (e2) {}
                     }
                 };
            } catch (e) {
                 console.warn("addEventListener not supported for permission status, using onchange fallback.");
-                // Fallback for older browsers
                 permissionStatus.onchange = permissionChangeListener;
                  cleanupFunc = () => {
                      try { permissionStatus.onchange = null; } catch (e) { console.warn("Error clearing onchange for geolocation:", e); }
                  };
            }
 
-           // Return the specific cleanup function for this listener
            return cleanupFunc;
 
        } catch (error) {
            console.error("Error checking GPS permission:", error);
            setHasGpsPermission(false);
-           return () => {}; // Return empty cleanup on error
+           setIsGpsDialogOpen(true); // Show dialog on error
+           return () => {};
        }
    };
 
-   // Resets markers and route, keeps input values
    const resetMapStateForNewOrigin = () => {
        console.log("Resetting map state (markers, route), keeping inputs.");
-        if (!mapLoaded || !mapRef.current) return; // Check mapLoaded
-        const currentMap = mapRef.current; // Use local variable
+        if (!mapRef.current) return;
+        const currentMap = mapRef.current;
 
-        // Check map and layer existence before removing
         if (originMarker && currentMap.hasLayer(originMarker)) {
              console.log("Removing origin marker.");
             try { currentMap.removeLayer(originMarker); } catch (e) { console.warn("Error removing origin marker", e); }
@@ -668,22 +635,19 @@ const MealDeliveryPage = () => {
         setOriginMarker(null);
         setDestinationMarker(null);
         setRouteLine(null);
-        // Don't reset click mode here, let the calling function decide
-        // setClickMode('origin'); // Default back to setting origin
     };
 
 
   const getCurrentLocationAndSetOrigin = async () => {
       console.log("Attempting to get current location and set as origin...");
-    if (!mapLoaded || !LRef.current || !mapRef.current || !currentPositionIcon) { // Check mapLoaded
-        console.error("Cannot get location: Map, Leaflet, or GPS icon not ready.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconReady: !!currentPositionIcon, mapLoaded });
+    if (!mapRef.current || !LRef.current || !currentPositionIcon) {
+        console.error("Cannot get location: Map, Leaflet, or GPS icon not ready.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconReady: !!currentPositionIcon });
        toast({ variant: 'destructive', title: 'Erreur Carte/Icone', description: 'La carte ou l\'icône GPS n\'a pas pu être chargée.' });
        return;
     }
     const L = LRef.current;
-    const currentMap = mapRef.current; // Use local variable
+    const currentMap = mapRef.current;
 
-    // Show immediate feedback that we're trying
     const gpsToast = toast({ title: "Localisation en cours...", description: "Tentative de récupération de votre position GPS." });
 
 
@@ -693,9 +657,9 @@ const MealDeliveryPage = () => {
       console.log("Calling navigator.geolocation.getCurrentPosition...");
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true, // Request high accuracy
-            timeout: 10000, // Increase timeout to 10 seconds
-            maximumAge: 0 // Force fresh location data
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
         });
       });
       console.log("Geolocation success:", position);
@@ -703,87 +667,72 @@ const MealDeliveryPage = () => {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
       };
-      setCurrentLocation(coords); // Update state with current coords
+      setCurrentLocation(coords);
       setHasGpsPermission(true); // Confirm permission was granted
 
-      // Proceed only if icon is available (redundant check, but safe)
        if (!currentPositionIcon) throw new Error("Current position icon became unavailable");
 
-        // Try adding marker and reverse geocoding
         let newMarker: L.Marker | null = null;
         try {
-            // Ensure map instance is still valid before adding layer
-            if (!mapRef.current) {
-                console.error("Map instance became unavailable before adding GPS marker.");
-                throw new Error("Map instance is not available.");
-            }
            console.log("Adding GPS location marker to map.");
-           newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(mapRef.current); // Use checked mapRef.current
-           setOriginMarker(newMarker); // Set this as the origin marker
+           newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(currentMap);
+           setOriginMarker(newMarker);
 
             console.log("Reverse geocoding GPS coordinates...");
            const geocodeResult = await reverseGeocode(coords.lat, coords.lng);
+            // Use the detailed address format from reverseGeocode
            const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
            console.log("GPS Reverse Geocode Result:", address);
 
-           // Update popup and input field
-           newMarker.bindPopup(`Départ (Actuel): ${address.split(',')[0]}`).openPopup(); // Use simple popup
-           setOrigin(address); // Update input field STATE
+           newMarker.bindPopup(`Départ (Actuel): ${address.split(',')[0]}`).openPopup();
+           setOrigin(address); // Update input field STATE with detailed address
 
-           // Update map view and click mode
-           mapRef.current.setView([coords.lat, coords.lng], 15); // Zoom in closer
-           console.log("Setting click mode to 'destination' after GPS success.");
-           setClickMode('destination'); // Next click sets destination
+           currentMap.setView([coords.lat, coords.lng], 15);
+           console.log("Setting click mode to 'none' after GPS success."); // Change mode to none or destination? Let's try none first.
+           setClickMode('none'); // Deactivate map click after GPS success
 
-            // Update toast to success
             gpsToast.update({
                 id: gpsToast.id,
                 title: 'Position Actuelle Définie',
-                description: `Votre position a été définie comme point de départ: ${address.split(',')[0]}. Choisissez la destination.`,
+                description: `Départ: ${address}. Choisissez la destination.`, // Show more details
             });
 
 
-            // If destination already existed, calculate route immediately
             if (destinationMarker && newMarker) {
                 console.log("Calculating route after GPS origin set (destination existed)...");
-                await calculateRoute(newMarker, destinationMarker); // Pass the new origin marker
+                await calculateRoute(newMarker, destinationMarker);
             }
 
         } catch (markerOrGeocodeError: any) {
              console.error('Error adding GPS marker or reverse geocoding:', markerOrGeocodeError);
              gpsToast.update({ id: gpsToast.id, variant: 'destructive', title: 'Erreur Affichage Position', description: `Impossible d'afficher ou de nommer votre position sur la carte. ${markerOrGeocodeError.message || ''}` });
-             // Attempt to remove potentially broken marker if it exists and map is still valid
-             if (newMarker && mapRef.current && mapRef.current.hasLayer(newMarker)) {
-                 try { mapRef.current.removeLayer(newMarker); } catch (removeError) { console.warn("Error removing failed GPS marker:", removeError); }
+             if (newMarker && currentMap.hasLayer(newMarker)) {
+                 try { currentMap.removeLayer(newMarker); } catch (removeError) { console.warn("Error removing failed GPS marker:", removeError); }
                  setOriginMarker(null);
              }
-             // Still set coords in input as fallback and center map if possible
              setOrigin(`Coordonnées: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`);
-              if(mapRef.current) { // Check before setting view
-                  mapRef.current.setView([coords.lat, coords.lng], 15);
-              }
-              console.log("Setting click mode to 'destination' even after GPS marker error.");
-             setClickMode('destination'); // Still allow setting destination
+              currentMap.setView([coords.lat, coords.lng], 15);
+             console.log("Setting click mode to 'none' after GPS marker error."); // Deactivate map click
+             setClickMode('none');
         }
 
 
     } catch (error: any) {
       console.error('Error accessing GPS location:', error);
        setHasGpsPermission(false); // Assume permission denied or error
-       setCurrentLocation(null); // Clear current location state
+       setCurrentLocation(null);
 
       let description = 'Une erreur s’est produite lors de la récupération de votre position.';
        if (error.code === error.PERMISSION_DENIED) {
            description = 'Veuillez autoriser l’accès GPS dans les paramètres de votre navigateur pour utiliser cette fonction.';
-           // Open the permission dialog again if denied here
-           setIsGpsDialogOpen(true);
+           setIsGpsDialogOpen(true); // Show dialog again if denied here
        } else if (error.code === error.POSITION_UNAVAILABLE) {
            description = 'Votre position actuelle n’est pas disponible. Vérifiez vos paramètres de localisation.';
+           setIsGpsDialogOpen(true); // Show dialog if unavailable
        } else if (error.code === error.TIMEOUT) {
            description = 'La demande de géolocalisation a expiré. Veuillez réessayer.';
        }
 
-        // Update toast to failure
        gpsToast.update({
            id: gpsToast.id,
            variant: 'destructive',
@@ -794,19 +743,15 @@ const MealDeliveryPage = () => {
   };
 
 
-    // Resets everything: markers, route, input values, map view
     const resetFullMap = () => {
         console.log("Resetting full map state: inputs, markers, route, view.");
-        const currentMap = mapRef.current; // Use local variable
-        if (mapLoaded && currentMap && LRef.current) { // Check mapLoaded
-           resetMapStateForNewOrigin(); // Clear markers and route first
-           setOrigin(''); // Clear input state
-           setDestination(''); // Clear input state
-           // Optionally reset GPS state if needed
-           // setCurrentLocation(null);
-           // setHasGpsPermission(null); // Maybe keep this state as is?
-           currentMap.setView([defaultLocation.lat, defaultLocation.lng], 10); // Reset view
-           setClickMode('origin'); // Reset click mode to origin
+        const currentMap = mapRef.current;
+        if (currentMap && LRef.current) {
+           resetMapStateForNewOrigin();
+           setOrigin('');
+           setDestination('');
+           currentMap.setView([defaultLocation.lat, defaultLocation.lng], 10);
+           setClickMode('none'); // Reset click mode
            toast({ title: 'Carte Réinitialisée', description: 'Sélectionnez un nouveau point de départ.' });
         } else {
             console.warn("Cannot reset full map: Map not ready.");
@@ -815,7 +760,6 @@ const MealDeliveryPage = () => {
       };
 
 
-   // Function to focus input and set click mode
    const handleFocusInputAndSetMode = (ref: React.RefObject<HTMLInputElement>, mode: 'origin' | 'destination') => {
      if (ref.current) {
          console.log(`Setting click mode to '${mode}' and focusing input.`);
@@ -824,7 +768,7 @@ const MealDeliveryPage = () => {
          block: 'center',
        });
        ref.current.focus();
-       setClickMode(mode); // Set the click mode STATE
+       setClickMode(mode);
        toast({
            title: `Mode Sélection ${mode === 'origin' ? 'Départ' : 'Destination'} Activé`,
            description: `Cliquez sur la carte pour définir ${mode === 'origin' ? 'le point de départ' : 'la destination'}.`,
@@ -836,64 +780,19 @@ const MealDeliveryPage = () => {
 
   const handleUseCurrentLocation = async () => {
       console.log("'Use Current Location' button clicked.");
-     if (!mapLoaded || !LRef.current || !mapRef.current) { // Check mapLoaded
+     if (!mapRef.current || !LRef.current) {
       console.warn("Cannot use current location: Map not ready.");
       toast({ variant: 'destructive', title: 'Carte non prête' });
       return;
     }
 
-     // Use a local variable to store cleanup function from permission check
      let cleanupPermissionListener: (() => void) | undefined;
-
      console.log("Current hasGpsPermission state:", hasGpsPermission);
 
-    if (hasGpsPermission === false) {
-        console.log("Permission previously denied or unavailable. Showing GPS dialog.");
-      setIsGpsDialogOpen(true); // Show dialog to ask user again
-    } else if (hasGpsPermission === true) {
-        console.log("Permission previously granted. Getting location directly.");
-       await getCurrentLocationAndSetOrigin(); // Already granted, just get location
-    } else {
-       // If permission state is null (unknown), try to get it, which might trigger browser prompt
-       console.log("Permission state unknown. Checking permission and attempting to get location.");
-       try {
-          cleanupPermissionListener = await checkGpsPermission(true); // Check and *attempt* to get location if granted/prompted
+    // Always show the dialog first to explain why we need GPS
+    setIsGpsDialogOpen(true);
 
-          // After the check, re-evaluate the permission state (it might have been updated)
-          // We need a slight delay or rely on the listener if it was 'prompt' initially
-          setTimeout(async () => {
-               if (navigator.permissions) {
-                   try {
-                       const currentStatus = await navigator.permissions.query({ name: 'geolocation' });
-                       console.log("Permission status after check/attempt:", currentStatus.state);
-                       if (currentStatus.state !== 'granted') {
-                           // If still not granted (e.g., user denied prompt), show our dialog as fallback/explanation
-                           console.log("Permission still not granted after check. Showing GPS dialog.");
-                           setIsGpsDialogOpen(true);
-                       }
-                       // If granted, getCurrentLocationAndSetOrigin should have been called by checkGpsPermission
-                   } catch (queryError) {
-                       console.error("Error querying permission status after check:", queryError);
-                       // Fallback: If querying fails, assume we need to ask via dialog
-                       setIsGpsDialogOpen(true);
-                   }
-               } else {
-                   // Fallback if permissions API not supported, assume need to ask via dialog
-                   console.log("Permissions API not supported. Showing GPS dialog.");
-                   setIsGpsDialogOpen(true);
-               }
-          }, 100); // Small delay to allow potential browser prompt to resolve
-
-       } catch (permError) {
-          console.error("Error in checkGpsPermission call:", permError);
-          // Fallback to showing dialog if the permission check itself fails
-          setIsGpsDialogOpen(true);
-       }
-    }
-
-     // Clean up the listener if it was created during the process
-    // Note: This cleanup might be premature if the dialog is shown,
-    // but it's complex to manage otherwise. The listener *should* be robust.
+    // Cleanup listener (might be redundant if dialog handles permission, but safe)
     if (cleanupPermissionListener) {
         try {
              console.log("Cleaning up temporary permission listener.");
@@ -911,19 +810,17 @@ const MealDeliveryPage = () => {
        // User explicitly clicked "Allow" in our dialog, so try getting location.
        // This will trigger the *browser's* permission prompt if needed.
        console.log("User allowed via dialog. Attempting to get location (may trigger browser prompt)...");
-       await getCurrentLocationAndSetOrigin();
+       await getCurrentLocationAndSetOrigin(); // This function handles browser prompt & errors
      } else {
          console.log("User denied via dialog.");
-       // User clicked "Deny" or "Cancel"
+       // User clicked "Non, spécifier manuellement"
        toast({
          title: 'GPS Non Activé',
          description: 'Vous pouvez spécifier votre position manuellement en cliquant sur la carte.',
        });
-       // Optionally, activate map click for origin if not already set
-       if (!originMarker) {
-            console.log("Activating origin map click after GPS dialog denial.");
-            handleFocusInputAndSetMode(originInputRef, 'origin');
-       }
+       // Activate map click for origin
+        console.log("Activating origin map click after GPS dialog denial.");
+        handleFocusInputAndSetMode(originInputRef, 'origin');
      }
    };
 
@@ -931,27 +828,25 @@ const MealDeliveryPage = () => {
    // Handle address search from input fields
    const handleAddressSearch = async (type: 'origin' | 'destination') => {
        console.log(`Handling address search for: ${type}`);
-       const currentMap = mapRef.current; // Use local variable
-       if (!mapLoaded || !currentMap || !LRef.current || !originIcon || !destinationIcon) { // Check mapLoaded
-            console.error("Cannot search address: Map, Leaflet, or icons not ready.", { mapReady: !!currentMap, LReady: !!LRef.current, iconsReady: !!originIcon && !!destinationIcon, mapLoaded });
+       const currentMap = mapRef.current;
+       if (!currentMap || !LRef.current || !originIcon || !destinationIcon) {
+            console.error("Cannot search address: Map, Leaflet, or icons not ready.", { mapReady: !!currentMap, LReady: !!LRef.current, iconsReady: !!originIcon && !!destinationIcon });
            toast({ variant: "destructive", title: "Carte non prête", description: "La carte ou ses composants ne sont pas encore initialisés." });
            return;
        }
        const L = LRef.current;
-       const address = type === 'origin' ? origin : destination; // Get address from STATE
+       const address = type === 'origin' ? origin : destination;
 
-       if (!address || address.trim().length < 3) { // Basic validation
+       if (!address || address.trim().length < 3) {
            console.warn(`Address search validation failed for ${type}: "${address}"`);
            toast({ variant: 'destructive', title: 'Recherche invalide', description: 'Veuillez entrer une adresse plus complète (au moins 3 caractères).' });
            return;
        }
 
-       // Show loading toast for geocoding
        const geocodeToast = toast({ title: "Recherche d'adresse...", description: `Recherche de: ${address}` });
 
        const result = await geocodeAddress(address); // Perform geocoding
 
-        // Update or dismiss the toast based on result
        geocodeToast.update({
            id: geocodeToast.id,
            title: result ? "Adresse trouvée" : "Adresse non trouvée",
@@ -962,7 +857,6 @@ const MealDeliveryPage = () => {
        if (result) {
            console.log(`Geocode successful for ${type}:`, result);
            const { lat, lng, displayName } = result;
-           // Use blue Pin for origin search result, green PinOff for destination
            const iconToUse = type === 'origin' ? originIcon : destinationIcon;
            let markerRef = type === 'origin' ? originMarker : destinationMarker;
            const setMarkerState = type === 'origin' ? setOriginMarker : setDestinationMarker;
@@ -980,27 +874,20 @@ const MealDeliveryPage = () => {
                setRouteLine(null); // Clear route state
            }
 
-           // Add new marker
            let newMarker: L.Marker | null = null;
            try {
                 console.log(`Adding new ${type} marker at (${lat}, ${lng}).`);
-                if (!iconToUse) throw new Error(`${type} icon is not loaded`); // Should not happen due to initial check, but safe
-                // Ensure map instance is still valid before adding layer
-                if (!mapRef.current) {
-                    console.error(`Map instance became unavailable before adding ${type} marker.`);
-                    throw new Error("Map instance is not available.");
-                }
-               newMarker = L.marker([lat, lng], { icon: iconToUse })
-                   .addTo(mapRef.current) // Use checked mapRef.current
+                if (!iconToUse) throw new Error(`${type} icon is not loaded`);
+                newMarker = L.marker([lat, lng], { icon: iconToUse })
+                   .addTo(currentMap)
                    .bindPopup(`${type === 'origin' ? 'Départ' : 'Destination'}: ${displayName.split(',')[0]}`)
                    .openPopup();
 
-               setMarkerState(newMarker); // Update marker STATE
+               setMarkerState(newMarker);
                setAddressState(displayName); // Update address STATE with formatted name
 
-               mapRef.current.setView([lat, lng], 15); // Center map on the result
+               currentMap.setView([lat, lng], 15);
 
-               // Determine next logical click mode
                const otherMarkerExists = type === 'origin' ? !!destinationMarker : !!originMarker;
                if (!otherMarkerExists) {
                     const nextMode = type === 'origin' ? 'destination' : 'origin';
@@ -1009,36 +896,29 @@ const MealDeliveryPage = () => {
                     toast({ title: `${type === 'origin' ? 'Point de Départ' : 'Destination'} Trouvé`, description: `Sélectionnez maintenant ${nextMode === 'origin' ? 'le point de départ' : 'la destination'} sur la carte ou via la recherche.`});
                } else {
                    console.log(`Deactivating click mode after ${type} search (both points exist).`);
-                   setClickMode('none'); // Both points set or search initiated it
-                   // toast({ title: 'Adresse Trouvée', description: displayName }); // Toast already shown by geocode result
+                   setClickMode('none');
                }
 
 
-                // Automatically calculate route if both markers now exist after this search
                 const currentOriginMarker = type === 'origin' ? newMarker : originMarker;
                 const currentDestinationMarker = type === 'destination' ? newMarker : destinationMarker;
                  if (currentOriginMarker && currentDestinationMarker) {
                      console.log(`Calculating route after ${type} search (both markers exist).`);
-                     await calculateRoute(currentOriginMarker, currentDestinationMarker); // Pass markers explicitly
+                     await calculateRoute(currentOriginMarker, currentDestinationMarker);
                  }
 
            } catch (error: any) {
                console.error(`Error adding marker for ${type} search:`, error);
                toast({ variant: 'destructive', title: `Erreur Marqueur ${type === 'origin' ? 'Départ' : 'Destination'}`, description: `Impossible d'ajouter le marqueur pour ${address}. ${error.message || ''}` });
-               // Attempt to remove potentially failed marker only if map instance still exists
-               if (newMarker && mapRef.current && mapRef.current.hasLayer(newMarker)) {
-                    try { mapRef.current.removeLayer(newMarker); } catch (removeError) { console.warn("Error removing failed search marker:", removeError); }
+               if (newMarker && currentMap.hasLayer(newMarker)) {
+                    try { currentMap.removeLayer(newMarker); } catch (removeError) { console.warn("Error removing failed search marker:", removeError); }
                }
-               setMarkerState(null); // Clear marker state on error
-
-               // Reset click mode potentially
+               setMarkerState(null);
                setClickMode('none');
            }
 
        } else {
             console.warn(`Address search failed for ${type}: "${address}"`);
-           // Toast already shown by geocode result update
-           // toast({ variant: 'destructive', title: 'Adresse Non Trouvée', description: 'Impossible de localiser cette adresse. Essayez différemment ou cliquez sur la carte.' });
        }
     };
 
@@ -1050,47 +930,42 @@ const MealDeliveryPage = () => {
         {/* The map container */}
         <div id="map" style={mapContainerStyle} className="rounded-md shadow-md mb-4" />
 
-        {/* Add CSS for leaflet-lucide-icon to prevent default Leaflet icon background/border */}
+        {/* Add CSS for leaflet-lucide-icon */}
         <style jsx global>{`
-          /* Reset Leaflet's default icon styles for our custom divIcons */
           .leaflet-lucide-icon {
             background: none !important;
             border: none !important;
             box-shadow: none !important;
-            line-height: 0; /* Prevent extra space */
-            margin: 0 !important; /* Reset margins */
-            padding: 0 !important; /* Reset padding */
+            line-height: 0;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-           /* Ensure the divIcon container itself doesn't have weird styles */
            .leaflet-marker-icon.leaflet-div-icon {
              background: none;
              border: none;
              padding: 0;
-             margin: 0; /* Reset margin for the marker container */
+             margin: 0;
              box-shadow: none;
-             /* Let the icon size be determined by the divIcon options */
              width: auto !important;
              height: auto !important;
            }
-           /* Fine-tune the inner div wrapper if needed */
            .leaflet-marker-icon .leaflet-lucide-icon div {
-              line-height: normal; /* Or adjust as needed */
+              line-height: normal;
            }
-           /* Ensure map container is visible and has a minimum height */
             #map {
-              min-height: 400px; /* Ensure map has a minimum height */
-              background-color: #eee; /* Light grey background while loading */
-              z-index: 0; /* Ensure map is behind interactive elements if needed, but visible */
-              position: relative; /* Add relative positioning */
+              min-height: 400px;
+              background-color: #eee;
+              z-index: 0;
+              position: relative;
             }
-            /* Style for the crosshair cursor (already set inline, but good fallback) */
             #map.leaflet-container {
                 cursor: crosshair !important;
             }
-            /* Fix for map rendering issue where only zoom buttons show */
+            /* Ensure map container is visible */
             .leaflet-container {
                 width: 100%;
                 height: 400px; /* Ensure this matches mapContainerStyle height */
+                visibility: visible; /* Explicitly set visibility */
             }
         `}</style>
 
@@ -1247,9 +1122,9 @@ const MealDeliveryPage = () => {
             {/* Right side: GPS Alert Area */}
             <div className="w-full md:w-1/2 mt-4 md:mt-0">
                {/* Show only one alert based on GPS status */}
-              {hasGpsPermission === false && (
+              {hasGpsPermission === false && !isGpsDialogOpen && ( // Show only if dialog is not open
                 <Alert variant="destructive">
-                  <Locate className="h-4 w-4" /> {/* Add icon to alert */}
+                  <Locate className="h-4 w-4" />
                   <AlertTitle>Accès GPS Refusé/Indisponible</AlertTitle>
                   <AlertDescription>
                      L'accès à votre position est désactivé ou non disponible. Vous pouvez essayer de
@@ -1260,9 +1135,9 @@ const MealDeliveryPage = () => {
                   </AlertDescription>
                 </Alert>
               )}
-               {hasGpsPermission === null && (
+               {hasGpsPermission === null && !isGpsDialogOpen && ( // Show only if dialog is not open
                  <Alert>
-                    <Locate className="h-4 w-4" /> {/* Add icon to alert */}
+                    <Locate className="h-4 w-4" />
                      <AlertTitle>Autorisation GPS Requise</AlertTitle>
                      <AlertDescription>
                          Pour utiliser votre position actuelle comme point de départ, veuillez
@@ -1273,7 +1148,7 @@ const MealDeliveryPage = () => {
                      </AlertDescription>
                  </Alert>
                 )}
-                 {/* Optional: Positive confirmation when GPS is active */}
+                {/* Positive confirmation when GPS is active */}
                 {hasGpsPermission === true && currentLocation && (
                  <Alert variant="default" className="border-green-500">
                      <Locate className="h-4 w-4 text-green-600" />
@@ -1329,5 +1204,3 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
-
-    
