@@ -17,18 +17,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {Locate, MapPin, Search, Pin, PinOff} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, MapPinCheck for confirmed Destination (Removed MapPinCheck as it doesn't seem to be used for icons)
+import {Locate, MapPin, Search, Pin, PinOff} from 'lucide-react'; // Use Locate for GPS, MapPin for Origin/Dest Click, Pin and PinOff for markers
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@/components/ui/tooltip";
 import type L from 'leaflet'; // Import Leaflet type
 
 const mapContainerStyle = {
   width: '100%',
-  height: '400px',
+  height: '400px', // Ensure a fixed height
   cursor: 'crosshair' // Change cursor to crosshair for map clicks
 };
 
 const defaultLocation = {
-  lat: 34.052235,
+  lat: 34.052235, // Default to LA
   lng: -118.243683,
 };
 
@@ -165,7 +165,7 @@ const MealDeliveryPage = () => {
   const [currentLocation, setCurrentLocation] = useState<{lat: number; lng: number} | null>(null);
   const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapLoaded, setMapLoaded] = useState(false); // State to track map loading status
   const mapRef = useRef<L.Map | null>(null);
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
@@ -180,12 +180,12 @@ const MealDeliveryPage = () => {
        const originToUse = currentOrigin ?? originMarker;
        const destinationToUse = currentDestination ?? destinationMarker;
 
-       if (!LRef.current || !mapRef.current || !originToUse || !destinationToUse) {
-           console.warn("Calculate route skipped: Missing map, leaflet, or markers.", { hasMap: !!mapRef.current, hasL: !!LRef.current, hasOrigin: !!originToUse, hasDest: !!destinationToUse });
+       if (!LRef.current || !mapRef.current || !mapLoaded || !originToUse || !destinationToUse) { // Check mapLoaded state
+           console.warn("Calculate route skipped: Missing map, leaflet, markers, or map not loaded.", { hasMap: !!mapRef.current, hasL: !!LRef.current, hasOrigin: !!originToUse, hasDest: !!destinationToUse, mapLoaded });
            toast({
                variant: 'default',
-               title: 'Information Manquante',
-               description: 'Veuillez définir un point de départ ET de destination sur la carte ou via la recherche pour calculer l\'itinéraire.',
+               title: 'Information Manquante ou Carte non Prête',
+               description: 'Veuillez définir un point de départ ET de destination sur la carte ou via la recherche. Attendez que la carte soit chargée.',
            });
            return;
        }
@@ -263,12 +263,13 @@ const MealDeliveryPage = () => {
            });
            // Ensure map interactivity isn't blocked by a stale loading state
        }
-   }, [originMarker, destinationMarker, routeLine, toast]); // Dependencies for calculateRoute
+   }, [originMarker, destinationMarker, routeLine, toast, mapLoaded]); // Add mapLoaded dependency
+
 
    // Define handleMapClick within the component scope, wrapped in useCallback
    const handleMapClick = useCallback(async (e: L.LeafletMouseEvent) => {
      console.log("Map clicked, current mode:", clickMode); // Debug log
-     if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') {
+     if (!mapLoaded || !LRef.current || !mapRef.current || clickMode === 'none') { // Check mapLoaded
        if (clickMode === 'none') {
             toast({ variant: 'default', title: 'Mode Sélection Inactif', description: "Cliquez sur l'icône 'Choisir sur la carte' (📍) près d'un champ d'adresse pour activer la sélection." });
        } else {
@@ -405,13 +406,13 @@ const MealDeliveryPage = () => {
          console.warn("Map clicked but clickMode was neither 'origin' nor 'destination'. Mode:", clickMode);
          setClickMode('none'); // Reset just in case
      }
-   }, [clickMode, mapLoaded, originMarker, destinationMarker, routeLine, toast, calculateRoute]); // Add calculateRoute to dependencies
+   }, [clickMode, mapLoaded, originMarker, destinationMarker, routeLine, toast, calculateRoute]); // Add mapLoaded dependency
 
 
   useEffect(() => {
     const initializeMap = async () => {
-      if (typeof window === 'undefined' || !document.getElementById('map') || mapRef.current) {
-         console.log("Map initialization skipped:", { hasWindow: typeof window !== 'undefined', mapElementExists: !!document.getElementById('map'), mapRefExists: !!mapRef.current });
+      if (typeof window === 'undefined' || !document.getElementById('map') || mapRef.current || mapLoaded) { // Check mapLoaded
+         console.log("Map initialization skipped:", { hasWindow: typeof window !== 'undefined', mapElementExists: !!document.getElementById('map'), mapRefExists: !!mapRef.current, mapAlreadyLoaded: mapLoaded });
          return;
       }
 
@@ -549,7 +550,7 @@ const MealDeliveryPage = () => {
     // Return the cleanup function to be called on component unmount
     return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, handleMapClick]); // handleMapClick is now a dependency due to useCallback
+  }, [toast, handleMapClick]); // handleMapClick is now a dependency due to useCallback, mapLoaded not needed here
 
 
   const checkGpsPermission = async (getLocationOnGrant = false) => {
@@ -631,7 +632,7 @@ const MealDeliveryPage = () => {
    // Resets markers and route, keeps input values
    const resetMapStateForNewOrigin = () => {
        console.log("Resetting map state (markers, route), keeping inputs.");
-        if (!mapRef.current) return;
+        if (!mapRef.current || !mapLoaded) return; // Check mapLoaded
         const currentMap = mapRef.current; // Use local variable
 
         // Check map and layer existence before removing
@@ -658,9 +659,9 @@ const MealDeliveryPage = () => {
 
   const getCurrentLocationAndSetOrigin = async () => {
       console.log("Attempting to get current location and set as origin...");
-    if (!LRef.current || !mapRef.current || !currentPositionIcon) {
-        console.error("Cannot get location: Map, Leaflet, or GPS icon not ready.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconReady: !!currentPositionIcon });
-       toast({ variant: 'destructive', title: 'Erreur Carte/Icone', description: 'La carte ou l\'icône GPS n\'a pas pu être chargée.' });
+    if (!LRef.current || !mapRef.current || !mapLoaded || !currentPositionIcon) { // Check mapLoaded
+        console.error("Cannot get location: Map, Leaflet, GPS icon not ready, or map not loaded.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconReady: !!currentPositionIcon, mapLoaded });
+       toast({ variant: 'destructive', title: 'Erreur Carte/Icone', description: 'La carte ou l\'icône GPS n\'a pas pu être chargée ou la carte n\'est pas prête.' });
        return;
     }
     const L = LRef.current;
@@ -774,7 +775,7 @@ const MealDeliveryPage = () => {
     const resetFullMap = () => {
         console.log("Resetting full map state: inputs, markers, route, view.");
         const currentMap = mapRef.current; // Use local variable
-        if (currentMap && LRef.current) {
+        if (currentMap && LRef.current && mapLoaded) { // Check mapLoaded
            resetMapStateForNewOrigin(); // Clear markers and route first
            setOrigin(''); // Clear input state
            setDestination(''); // Clear input state
@@ -786,6 +787,7 @@ const MealDeliveryPage = () => {
            toast({ title: 'Carte Réinitialisée', description: 'Sélectionnez un nouveau point de départ.' });
         } else {
             console.warn("Cannot reset full map: Map not ready.");
+            toast({ variant: 'destructive', title: 'Carte non prête' });
         }
       };
 
@@ -811,7 +813,7 @@ const MealDeliveryPage = () => {
 
   const handleUseCurrentLocation = async () => {
       console.log("'Use Current Location' button clicked.");
-     if (!mapLoaded || !LRef.current || !mapRef.current) {
+     if (!mapLoaded || !LRef.current || !mapRef.current) { // Check mapLoaded
       console.warn("Cannot use current location: Map not ready.");
       toast({ variant: 'destructive', title: 'Carte non prête' });
       return;
@@ -907,9 +909,9 @@ const MealDeliveryPage = () => {
    const handleAddressSearch = async (type: 'origin' | 'destination') => {
        console.log(`Handling address search for: ${type}`);
        const currentMap = mapRef.current; // Use local variable
-       if (!currentMap || !LRef.current || !originIcon || !destinationIcon) {
-            console.error("Cannot search address: Map, Leaflet, or icons not ready.", { mapReady: !!currentMap, LReady: !!LRef.current, iconsReady: !!originIcon && !!destinationIcon });
-           toast({ variant: "destructive", title: "Carte non prête", description: "La carte ou ses composants ne sont pas encore initialisés." });
+       if (!currentMap || !LRef.current || !mapLoaded || !originIcon || !destinationIcon) { // Check mapLoaded
+            console.error("Cannot search address: Map, Leaflet, icons not ready, or map not loaded.", { mapReady: !!currentMap, LReady: !!LRef.current, iconsReady: !!originIcon && !!destinationIcon, mapLoaded });
+           toast({ variant: "destructive", title: "Carte non prête", description: "La carte ou ses composants ne sont pas encore initialisés ou chargés." });
            return;
        }
        const L = LRef.current;
@@ -1303,3 +1305,5 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
+
+    
