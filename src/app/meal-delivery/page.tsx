@@ -468,17 +468,16 @@ const MealDeliveryPage = () => {
 
         mapRef.current = map; // Assign map instance to ref
 
-        // Call invalidateSize AFTER map is fully initialized and added to DOM
-        // Use setTimeout to ensure it runs after the current render cycle completes
-        setTimeout(() => {
+        // Use requestAnimationFrame to ensure invalidateSize runs after the DOM is ready
+        requestAnimationFrame(() => {
             if (mapRef.current) {
-                 console.log("Calling map.invalidateSize()...");
+                console.log("Calling map.invalidateSize() via requestAnimationFrame...");
                 mapRef.current.invalidateSize();
-                 console.log("map.invalidateSize() called.");
-                 setMapLoaded(true); // Set map loaded state AFTER invalidateSize
-                 console.log("Map initialized and loaded state set AFTER invalidateSize.");
+                console.log("map.invalidateSize() called.");
+                setMapLoaded(true); // Set map loaded state AFTER invalidateSize
+                console.log("Map initialized and loaded state set AFTER invalidateSize.");
             }
-        }, 0);
+        });
 
 
         // Safely access container after mapRef is set and set cursor
@@ -1058,6 +1057,7 @@ const MealDeliveryPage = () => {
               min-height: 400px; /* Ensure map has a minimum height */
               background-color: #eee; /* Light grey background while loading */
               z-index: 0; /* Ensure map is behind interactive elements if needed, but visible */
+              position: relative; /* Add relative positioning */
             }
             /* Style for the crosshair cursor (already set inline, but good fallback) */
             #map.leaflet-container {
@@ -1305,5 +1305,3 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
-
-    
