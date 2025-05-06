@@ -642,9 +642,9 @@ const MealDeliveryPage = () => {
   // Get current location and set it as origin
   const getCurrentLocationAndSetOrigin = async () => {
       console.log("Attempting to get current location and set as origin...");
-    if (!mapRef.current || !LRef.current || !originIcon) { // Use originIcon for consistency
-        console.error("Cannot get location: Map, Leaflet, or origin icon not ready.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconReady: !!originIcon });
-       toast({ variant: 'destructive', title: 'Erreur Carte/Icone', description: 'La carte ou l\'icône de départ n\'a pas pu être chargée.' });
+    if (!mapRef.current || !LRef.current || !currentPositionIcon) { 
+        console.error("Cannot get location: Map, Leaflet, or currentPositionIcon not ready.", { mapReady: !!mapRef.current, LReady: !!LRef.current, iconReady: !!currentPositionIcon });
+       toast({ variant: 'destructive', title: 'Erreur Carte/Icone', description: 'La carte ou l\'icône de position actuelle n\'a pas pu être chargée.' });
        return;
     }
     const L = LRef.current;
@@ -671,12 +671,12 @@ const MealDeliveryPage = () => {
       };
       setCurrentLocation(coords); // Store current location if needed elsewhere
 
-       if (!originIcon) throw new Error("Origin icon became unavailable"); // Should be loaded by now
+       if (!currentPositionIcon) throw new Error("currentPositionIcon became unavailable"); 
 
         let newMarker: L.Marker | null = null;
         try {
-           console.log("Adding GPS location marker to map using originIcon.");
-           newMarker = L.marker([coords.lat, coords.lng], { icon: originIcon }).addTo(currentMap);
+           console.log("Adding GPS location marker to map using currentPositionIcon.");
+           newMarker = L.marker([coords.lat, coords.lng], { icon: currentPositionIcon }).addTo(currentMap);
            setOriginMarker(newMarker); // Set as the origin marker
 
             console.log("Reverse geocoding GPS coordinates...");
@@ -811,6 +811,7 @@ const MealDeliveryPage = () => {
    const handleGpsDialogAction = async (allow: boolean) => {
        console.log(`GPS Dialog action: ${allow ? 'Allow' : 'Deny'}`);
      setIsGpsDialogOpen(false); // Close dialog regardless of choice
+ 
      if (allow) {
        setHasGpsPermission(null); // Set to null to re-trigger browser permission request flow if needed
        console.log("User allowed via dialog. Attempting to get location (may trigger browser prompt)...");
@@ -1195,13 +1196,9 @@ const MealDeliveryPage = () => {
 
           {/* GPS Permission Dialog */}
           <AlertDialog open={isGpsDialogOpen} onOpenChange={(open) => {
-              // If dialog is closed by clicking outside or pressing Esc,
-              // and permission is still undetermined, treat it as "specify manually" for now.
-              if (!open && hasGpsPermission === null) {
-                  console.log("GPS Dialog closed without explicit choice, defaulting to manual.");
-                  handleGpsDialogAction(false); // Treat as "No, specify manually"
-              } else {
-                  setIsGpsDialogOpen(open); // Standard open/close behavior
+              setIsGpsDialogOpen(open);
+              if (!open && mapRef.current) { // If dialog is closing
+                mapRef.current.invalidateSize(); // Force map redraw
               }
           }}>
             <AlertDialogContent>
