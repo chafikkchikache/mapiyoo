@@ -433,7 +433,7 @@ const MealDeliveryPage = () => {
                 if (permissionStatus.state === 'granted') {
                     setHasGpsPermission(true);
                     // Don't show dialog if already granted AND we are not in an explicit prompt phase
-                    if (isGpsDialogOpen && promptUserIfNeeded) setIsGpsDialogOpen(false);
+                    if (isGpsDialogOpen && !promptUserIfNeeded) setIsGpsDialogOpen(false); // Close if open & not prompting
                     return true;
                 } else if (permissionStatus.state === 'prompt') {
                     setHasGpsPermission(null); // Unknown
@@ -464,16 +464,16 @@ const MealDeliveryPage = () => {
     const handleGpsPermissionResponse = useCallback(async (granted: boolean, fieldTypeToSet: 'origin' | 'destination' = 'origin') => {
         setIsGpsDialogOpen(false); // Close dialog regardless of choice
         if (granted) {
-            setHasGpsPermission(true); // User explicitly granted via our dialog flow
+            // No need to setHasGpsPermission here if it's set by getCurrentLocationAndSetField
             toast({ title: 'Activation GPS demandée...', description: 'Tentative de récupération de votre position.' });
-            await getCurrentLocationAndSetField(fieldTypeToSet);
+            await getCurrentLocationAndSetField(fieldTypeToSet); // This will handle permission setting
         } else {
             setHasGpsPermission(false); // Explicitly set to false if user chose "Non"
             toast({ title: 'GPS Non Activé', description: 'Vous pouvez définir votre position manuellement.' });
         }
         // Ensure map resizes correctly if dialog was covering it
         requestAnimationFrame(() => mapRef.current?.invalidateSize());
-    }, [toast]); // Removed getCurrentLocationAndSetField from deps, handle it via hasGpsPermission effect
+    }, [toast]); // Removed getCurrentLocationAndSetField from deps, it handles its own permission state.
 
 
   useEffect(() => {
@@ -522,11 +522,9 @@ const MealDeliveryPage = () => {
         }
 
         // Ensure mapElement has dimensions before initializing Leaflet map
-        // This check might be redundant if mapContainerStyle guarantees height, but good for safety
         if (mapElement.offsetHeight === 0 || mapElement.offsetWidth === 0) {
              console.warn("Map element has no dimensions prior to Leaflet init. Delaying slightly.");
-             // Wait a tick for layout
-             await new Promise(resolve => setTimeout(resolve, 0));
+             await new Promise(resolve => setTimeout(resolve, 0)); // Wait a tick for layout
              if (mapElement.offsetHeight === 0 || mapElement.offsetWidth === 0) {
                  console.error("Map element still has no dimensions. Leaflet might fail.");
                  toast({ variant: 'destructive', title: 'Erreur Carte', description: "Le conteneur de la carte n'a pas de dimensions."});
@@ -559,17 +557,14 @@ const MealDeliveryPage = () => {
         map.on('click', handleMapClick);
         console.log("Map 'click' listener attached during initialization.");
 
-        setMapLoaded(true); // Set map loaded state true
-        console.log("mapLoaded state set to true.");
 
-
-        // Use requestAnimationFrame to ensure invalidateSize runs after the DOM is ready
-        // and potentially after mapLoaded state has caused CSS to make container visible.
         requestAnimationFrame(() => {
             if (mapRef.current) {
                 console.log("Calling map.invalidateSize() via requestAnimationFrame...");
                 mapRef.current.invalidateSize();
-                console.log("map.invalidateSize() called after mapLoaded=true and rAF.");
+                console.log("map.invalidateSize() called after map is created and rAF.");
+                setMapLoaded(true); // Set map loaded state true AFTER invalidateSize
+                console.log("mapLoaded state set to true AFTER invalidateSize.");
             }
         });
 
@@ -635,7 +630,7 @@ const MealDeliveryPage = () => {
     };
     // Return the cleanup function to be called on component unmount
     return cleanup;
-  }, [toast, checkGpsPermission, handleMapClick]); // Minimal stable dependencies
+  }, [toast]); // Minimized dependencies for initialization effect
 
 
    const resetMapStateForNewField = (fieldType: 'origin' | 'destination') => {
@@ -823,22 +818,14 @@ const MealDeliveryPage = () => {
       }
 
       // Check current permission state
-      if (hasGpsPermission === true) { // Already granted
+      const permissionState = await checkGpsPermission(true); // Always prompt if unknown/denied
+      if (permissionState === true) { // Granted or became granted
           await getCurrentLocationAndSetField(fieldType);
-      } else if (hasGpsPermission === false) { // Denied previously
-          setIsGpsDialogOpen(true); // Re-open dialog to potentially guide to settings or re-request
-      } else { // null (unknown/prompt state)
-          // Check permission again, this time it WILL prompt if state is 'prompt'
-          const permissionGranted = await checkGpsPermission(true);
-          if (permissionGranted === true) { // Granted after this check
-             await getCurrentLocationAndSetField(fieldType);
-          } else if (permissionGranted === false) { // Denied after this check
-             // Dialog should have been shown by checkGpsPermission if it was 'prompt' or 'denied'
-             // If it's still false, it means user denied in browser or it's blocked
-             toast({ variant: "destructive", title: "GPS Refusé", description: "Veuillez activer la localisation dans les paramètres de votre navigateur." });
-          }
-          // If permissionGranted is null, dialog is likely open or will be by checkGpsPermission
+      } else if (permissionState === false) { // Denied
+          // Dialog should have been shown by checkGpsPermission
+          toast({ variant: "destructive", title: "GPS Refusé", description: "Veuillez activer la localisation dans les paramètres de votre navigateur ou via la demande." });
       }
+      // If permissionState is null, dialog is likely open.
   };
 
 
@@ -876,7 +863,7 @@ const MealDeliveryPage = () => {
            console.log(`Geocode successful for ${type}:`, result);
            const {lat, lng, displayName} = result;
             const iconToUse = type === 'origin' ? originIconInstance : destinationIconInstance;
-           let currentMarkerRef = type === 'origin' ? originMarker : destinationMarker;
+           // let currentMarkerRef = type === 'origin' ? originMarker : destinationMarker; // Not used for direct mutation
            const setMarkerState = type === 'origin' ? setOriginMarker : setDestinationMarker;
            const setAddressState = type === 'origin' ? setOrigin : setDestination;
 
@@ -969,10 +956,6 @@ const MealDeliveryPage = () => {
                 cursor: crosshair !important; /* Ensure crosshair cursor */
                 background-color: #e5e3df; /* Leaflet's own map background color */
             }
-            /* Removed dynamic visibility from .leaflet-container and .leaflet-tile-pane
-               The #map div itself will be rendered, and Leaflet initializes into it.
-               Loading states can be managed by overlaying a spinner on #map if !mapLoaded.
-            */
             .leaflet-container {
                 width: 100%;
                 height: 400px;
