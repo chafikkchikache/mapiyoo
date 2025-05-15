@@ -478,8 +478,9 @@ const MealDeliveryPage = () => {
 
   useEffect(() => {
     const initializeMap = async () => {
-      // If map already initialized by this ref, or no window/document, skip.
-      if (typeof window === 'undefined' || !document.getElementById('map') || mapRef.current) {
+      const mapElementForCheck = document.getElementById('map');
+      // If map already initialized by this ref, or no window/document, or element has Leaflet ID, skip.
+      if (typeof window === 'undefined' || !mapElementForCheck || mapRef.current || (mapElementForCheck as any)._leaflet_id) {
         if (mapRef.current && !mapLoaded) { // If ref exists but mapLoaded is false, maybe it needs invalidation
              console.log("Map ref exists but not marked as loaded. Attempting invalidateSize.");
              requestAnimationFrame(() => {
@@ -488,11 +489,16 @@ const MealDeliveryPage = () => {
                     setMapLoaded(true); // Mark as loaded after this attempt
                 }
             });
-        } else {
+        } else if ((mapElementForCheck as any)?._leaflet_id && !mapRef.current) {
+            console.warn("Map element has Leaflet ID, but mapRef.current is null. This indicates an inconsistent state, possibly from a hot reload or incomplete cleanup. Skipping init to prevent error.");
+        }
+        else {
             console.log("Map initialization skipped:", {
                 hasWindow: typeof window !== 'undefined',
-                mapElementExists: !!document.getElementById('map'),
+                mapElementExists: !!mapElementForCheck,
                 mapRefExists: !!mapRef.current,
+                elementHasLeafletId: !!(mapElementForCheck as any)?._leaflet_id,
+                mapAlreadyLoaded: mapLoaded
              });
         }
         return;
@@ -514,7 +520,7 @@ const MealDeliveryPage = () => {
              console.log("Leaflet icons created successfully.");
         }
 
-        const mapElement = document.getElementById('map');
+        const mapElement = document.getElementById('map'); // Re-get after check to be sure
         if (!mapElement) {
             console.error("Map element not found after dynamic import of Leaflet.");
             toast({ variant: 'destructive', title: 'Erreur Carte', description: "Conteneur de carte introuvable." });
@@ -1196,3 +1202,4 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
+
