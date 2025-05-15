@@ -1,3 +1,4 @@
+
 'use client';
 
 import {Button} from '@/components/ui/button';
@@ -68,8 +69,8 @@ export default function Home() {
 
           {/* Mobile Menu */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild className="">
-              <Button variant="ghost" className="h-8 w-8 p-0 md:hidden">
+            <DropdownMenuTrigger asChild className="md:hidden">
+              <Button variant="ghost" className="h-8 w-8 p-0">
                 <span className="sr-only">Ouvrir le menu</span>
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -91,7 +92,7 @@ export default function Home() {
                 </Link>
               </DropdownMenuItem>
                <DropdownMenuItem>
-                <Link href="#" className="w-full">
+                <Link href="/help" className="w-full"> {/* Assuming /help is the route for Aide */}
                   Aide
                 </Link>
               </DropdownMenuItem>
@@ -105,12 +106,12 @@ export default function Home() {
           {/* Grid changes to 2 columns on medium screens and up */}
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
-              colie et package
+              Colis et package
             </h2>
             <p className="text-muted-foreground mb-6 text-center">
             Expédiez vos colis en un clin d’œil...
             </p>
-            <Button onClick={() => handleNavigation('/register')}>Commencer la livraison</Button>
+            <Button onClick={() => handleNavigation('/package-delivery')}>Commencer la livraison</Button>
           </div>
 
           <div className="flex flex-col items-center justify-center p-8 rounded-lg shadow-md bg-card">
@@ -142,4 +143,3 @@ export default function Home() {
     </div>
   );
 }
-
