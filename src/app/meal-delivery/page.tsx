@@ -180,7 +180,7 @@ const MealDeliveryPage = () => {
   const [destination, setDestination] = useState('');
   const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null);
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(true); // Initialize to true to show dialog on load
-  const [gpsRequestSource, setGpsRequestSource] = useState<'origin' | 'destination'>('origin');
+  const [gpsRequestSource, setGpsRequestSource] = useState<'origin' | 'destination' | 'initial'>('initial');
   const mapRef = useRef<L.Map | null>(null);
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
@@ -386,39 +386,44 @@ const MealDeliveryPage = () => {
    }, [clickMode, originMarker, destinationMarker, routeLine, toast, calculateRoute, mapLoaded]);
 
    const checkGpsPermission = useCallback(async (promptUserIfNeeded = true) => {
-        console.log(`Checking GPS permission. Prompt if needed: ${promptUserIfNeeded}`);
+        console.log(`Checking GPS permission. Prompt if needed: ${promptUserIfNeeded}, Current Source: ${gpsRequestSource}`);
         if (navigator.permissions) {
             try {
                 const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
                 console.log("GPS Permission Status:", permissionStatus.state);
                 if (permissionStatus.state === 'granted') {
                     setHasGpsPermission(true);
-                    if (isGpsDialogOpen && !promptUserIfNeeded) setIsGpsDialogOpen(false);
+                    if (isGpsDialogOpen && gpsRequestSource === 'initial' && !promptUserIfNeeded) setIsGpsDialogOpen(false);
                     return true;
                 } else if (permissionStatus.state === 'prompt') {
                     setHasGpsPermission(null);
-                    if (promptUserIfNeeded && !isGpsDialogOpen) setIsGpsDialogOpen(true);
+                    if (promptUserIfNeeded && !isGpsDialogOpen) {
+                        setIsGpsDialogOpen(true);
+                    }
                     return null;
-                } else {
+                } else { // 'denied'
                     setHasGpsPermission(false);
-                    if (promptUserIfNeeded && !isGpsDialogOpen) setIsGpsDialogOpen(true);
+                    if (promptUserIfNeeded && !isGpsDialogOpen) {
+                        setIsGpsDialogOpen(true);
+                    }
                     return false;
                 }
             } catch (error) {
                 console.error("Error checking GPS permission:", error);
-                setHasGpsPermission(false);
+                setHasGpsPermission(false); // Assume no permission on error
                 if (promptUserIfNeeded && !isGpsDialogOpen) setIsGpsDialogOpen(true);
                 return false;
             }
         } else {
-            console.warn("Navigator.permissions API not available. Will rely on direct geolocation attempt.");
-            setHasGpsPermission(null);
-            if (promptUserIfNeeded && !isGpsDialogOpen) setIsGpsDialogOpen(true);
+            console.warn("Navigator.permissions API not available.");
+            setHasGpsPermission(null); // Permission state unknown
+            if (promptUserIfNeeded && !isGpsDialogOpen) setIsGpsDialogOpen(true); // Fallback to dialog if API not available
             return null;
         }
-    }, [isGpsDialogOpen]);
+    }, [isGpsDialogOpen, gpsRequestSource]);
 
-  const getCurrentLocationAndSetField = useCallback(async (fieldType: 'origin' | 'destination') => {
+
+    const getCurrentLocationAndSetField = useCallback(async (fieldType: 'origin' | 'destination') => {
       console.log(`Attempting to get current location and set as ${fieldType}...`);
       setClickMode('none');
 
@@ -442,8 +447,7 @@ const MealDeliveryPage = () => {
               });
           });
           console.log("Geolocation success:", position);
-          setHasGpsPermission(true);
-          setIsGpsDialogOpen(false);
+          // No need to setHasGpsPermission(true) here as it's already confirmed before calling this func.
 
           const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
 
@@ -483,9 +487,9 @@ const MealDeliveryPage = () => {
       } catch (error: any) {
           console.error(`Error accessing GPS location for ${fieldType}:`, error);
           let description = 'Une erreur s’est produite.';
-          if (error.code === error.PERMISSION_DENIED) {
+          if (error.code === error.PERMISSION_DENIED) { // This error code is from Geolocation API
               description = 'Veuillez autoriser l’accès GPS dans les paramètres de votre navigateur.';
-              setHasGpsPermission(false);
+              setHasGpsPermission(false); // Update based on actual browser denial
           } else if (error.code === error.POSITION_UNAVAILABLE) {
               description = 'Votre position actuelle n’est pas disponible.';
           } else if (error.code === error.TIMEOUT) {
@@ -500,22 +504,69 @@ const MealDeliveryPage = () => {
               title: error.code === error.PERMISSION_DENIED ? 'Accès GPS Refusé par Navigateur' : `Erreur GPS (${fieldType})`,
               description: description,
           });
-           setIsGpsDialogOpen(false);
       }
   }, [toast, calculateRoute, originMarker, destinationMarker]);
 
 
-    const handleGpsPermissionResponse = useCallback(async (granted: boolean, fieldTypeToSet: 'origin' | 'destination') => {
-        setIsGpsDialogOpen(false);
+    const handleGpsPermissionResponse = useCallback(async (granted: boolean) => {
+        setIsGpsDialogOpen(false); // Close dialog first
+
         if (granted) {
-            toast({ title: 'Activation GPS demandée...', description: 'Tentative de récupération de votre position.' });
-            await getCurrentLocationAndSetField(fieldTypeToSet);
-        } else {
+            let permissionGrantedByBrowser = false;
+            if (navigator.geolocation) {
+                try {
+                    // Attempt to get or confirm browser permission
+                    await new Promise<void>((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            () => { // Success callback
+                                setHasGpsPermission(true);
+                                permissionGrantedByBrowser = true;
+                                console.log("Browser permission for geolocation is granted.");
+                                resolve();
+                            },
+                            (err) => { // Error callback
+                                setHasGpsPermission(false);
+                                permissionGrantedByBrowser = false;
+                                console.warn("Browser permission for geolocation denied or error:", err);
+                                if (err.code === err.PERMISSION_DENIED) {
+                                    toast({ variant: "destructive", title: "Accès GPS Refusé", description: "Le navigateur a refusé l'accès à la localisation." });
+                                } else {
+                                    toast({ variant: "destructive", title: "Erreur GPS", description: "Impossible d'obtenir la position." });
+                                }
+                                reject(err);
+                            },
+                            { timeout: 10000, maximumAge: 0, enableHighAccuracy: true }
+                        );
+                    });
+
+                    if (permissionGrantedByBrowser && (gpsRequestSource === 'origin' || gpsRequestSource === 'destination')) {
+                        console.log(`Permission granted, and source is ${gpsRequestSource}. Getting location for field.`);
+                        await getCurrentLocationAndSetField(gpsRequestSource);
+                    } else if (permissionGrantedByBrowser && gpsRequestSource === 'initial') {
+                        toast({ title: 'Accès GPS Autorisé', description: 'Vous pouvez maintenant utiliser les icônes GPS près des champs d\'adresse.' });
+                    }
+
+                } catch (error) {
+                    console.log("Error during/after geolocation permission request from dialog:", error);
+                }
+            } else {
+                setHasGpsPermission(false);
+                toast({ variant: "destructive", title: "GPS Non Supporté", description: "Votre navigateur ne supporte pas la géolocalisation." });
+            }
+        } else { // User clicked "Non, spécifier manuellement"
             setHasGpsPermission(false);
             toast({ title: 'GPS Non Activé', description: 'Vous pouvez définir votre position manuellement.' });
         }
-        requestAnimationFrame(() => mapRef.current?.invalidateSize());
-    }, [toast, gpsRequestSource, getCurrentLocationAndSetField]);
+        
+        setGpsRequestSource('initial'); // Reset for next time a dialog might be needed
+
+        requestAnimationFrame(() => {
+            if (mapRef.current && mapLoaded) { // Check mapLoaded here as well
+                mapRef.current.invalidateSize();
+                console.log("Map invalidated after GPS dialog closed.");
+            }
+        });
+    }, [toast, gpsRequestSource, getCurrentLocationAndSetField, mapLoaded]);
 
 
   useEffect(() => {
@@ -546,6 +597,7 @@ const MealDeliveryPage = () => {
       }
 
       try {
+        setGpsRequestSource('initial'); // Set for the first permission check
         console.log("Initializing map...");
         const L_module = (await import('leaflet')).default;
         LRefGlobal = L_module;
@@ -570,12 +622,21 @@ const MealDeliveryPage = () => {
 
         if (mapElement.offsetHeight === 0 || mapElement.offsetWidth === 0) {
              console.warn("Map element has no dimensions prior to Leaflet init. Delaying slightly.");
-             await new Promise(resolve => setTimeout(resolve, 0));
+             await new Promise(resolve => setTimeout(resolve, 0)); // Microtask delay
              if (mapElement.offsetHeight === 0 || mapElement.offsetWidth === 0) {
                  console.error("Map element still has no dimensions. Leaflet might fail.");
                  toast({ variant: 'destructive', title: 'Erreur Carte', description: "Le conteneur de la carte n'a pas de dimensions."});
              }
         }
+         // Check if map is ALREADY initialized on this element (e.g., React StrictMode re-mount)
+        if ((mapElement as any)._leaflet_id) {
+            console.warn("Map element already has a Leaflet ID. Skipping re-initialization.");
+            // Attempt to use existing map instance if possible, or ensure cleanup was effective.
+            // For now, we just skip re-init. A more robust solution might involve trying to retrieve the existing map instance.
+            setMapLoaded(true); // Assume it was loaded if it has an ID
+            return;
+        }
+
 
         const map = LRefGlobal.map(mapElement, {
           center: [defaultLocation.lat, defaultLocation.lng],
@@ -618,8 +679,7 @@ const MealDeliveryPage = () => {
            console.log("Map container cursor set to crosshair.");
         }
 
-        // This is important for the initial dialog
-        checkGpsPermission(true); // Pass true to prompt if needed on initial load
+        checkGpsPermission(true); // This will open the initial dialog if needed
 
       } catch (error) {
         console.error('Failed to load Leaflet or initialize map:', error);
@@ -645,11 +705,16 @@ const MealDeliveryPage = () => {
 
            const mapElement = document.getElementById('map');
            if (mapElement && currentMapInstance.getContainer() && mapElement === currentMapInstance.getContainer()) {
-                console.log("Removing map instance...");
-                currentMapInstance.remove();
-                console.log("Map instance removed.");
+                // Check if Leaflet thinks it's initialized on this element
+                if ((mapElement as any)._leaflet_id) {
+                    console.log("Removing map instance from element:", mapElement);
+                    currentMapInstance.remove();
+                    console.log("Map instance removed.");
+                } else {
+                    console.log("Map element does not have _leaflet_id, skipping remove().");
+                }
            } else {
-                console.log("Map container already removed or not found, skipping map.remove().");
+                console.log("Map container already removed or not found during cleanup, skipping map.remove().");
            }
          } catch (e) {
            console.warn("Error during map cleanup:", e);
@@ -668,20 +733,19 @@ const MealDeliveryPage = () => {
       console.log("Map cleanup complete.");
     };
     return cleanup;
-  }, [toast]); // Minimized dependencies for initialization effect
+  }, [toast, handleMapClick, checkGpsPermission]); // Added checkGpsPermission and handleMapClick
 
 
    useEffect(() => {
     if (mapLoaded && !isGpsDialogOpen && mapRef.current) {
       console.log("Dialog closed and map loaded, calling invalidateSize.");
-      // Delay slightly to ensure DOM has updated after dialog removal
       requestAnimationFrame(() => {
-        setTimeout(() => { // Additional small delay
+        setTimeout(() => {
           if (mapRef.current) {
             mapRef.current.invalidateSize();
             console.log("invalidateSize called after dialog closed and rAF + setTimeout.");
           }
-        }, 50); // 50ms delay, can be adjusted
+        }, 50);
       });
     }
   }, [isGpsDialogOpen, mapLoaded]);
@@ -754,8 +818,8 @@ const MealDeliveryPage = () => {
 
   const handleUseLocationIconClick = async (fieldType: 'origin' | 'destination') => {
       console.log(`'Use Current Location' icon clicked for ${fieldType}.`);
-      setClickMode('none');
-      setGpsRequestSource(fieldType);
+      setClickMode('none'); // Deactivate map click mode
+      setGpsRequestSource(fieldType); // Set which field this request is for
 
       if (!mapRef.current || !LRefGlobal) {
         console.warn("Cannot use current location: Map not ready.");
@@ -763,11 +827,16 @@ const MealDeliveryPage = () => {
         return;
       }
 
-      const permissionState = await checkGpsPermission(true);
-      if (permissionState === true) {
-          await getCurrentLocationAndSetField(fieldType);
-      } else if (permissionState === false) {
-          toast({ variant: "destructive", title: "GPS Refusé", description: "Veuillez activer la localisation dans les paramètres de votre navigateur ou via la demande." });
+      const permissionStatus = await checkGpsPermission(false); // Check silently first
+
+      if (permissionStatus === true) {
+          console.log(`GPS permission already granted for ${fieldType}. Getting location.`);
+          await getCurrentLocationAndSetField(fieldType); // Permission already granted, get location
+      } else {
+          // Permission is 'denied' or 'prompt'. We need to open the dialog.
+          console.log(`GPS permission not granted for ${fieldType} or needs prompt. Opening dialog.`);
+          setIsGpsDialogOpen(true); // Open the dialog.
+          // `handleGpsPermissionResponse` will use `gpsRequestSource` to decide if it should call `getCurrentLocationAndSetField`
       }
   };
 
@@ -874,17 +943,19 @@ const MealDeliveryPage = () => {
            }
             #map {
               min-height: 400px;
-              background-color: #f0f0f0;
-              z-index: 0;
-              position: relative;
+              background-color: #f0f0f0; /* Light gray for placeholder */
+              z-index: 0; /* Ensure map is below dialogs */
+              position: relative; /* Needed for z-index to work as expected */
             }
+            /* Ensure map container is styled for Leaflet */
             #map.leaflet-container {
                 cursor: crosshair !important;
-                background-color: #e5e3df;
+                background-color: #e5e3df; /* Default Leaflet background */
             }
+            /* Ensure leaflet container itself also has dimensions */
             .leaflet-container {
                 width: 100%;
-                height: 400px;
+                height: 400px; /* Must match mapContainerStyle */
             }
         `}</style>
 
@@ -1053,7 +1124,7 @@ const MealDeliveryPage = () => {
                      <AlertTitle>Autorisation GPS en Attente</AlertTitle>
                      <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center">
                         Pour utiliser votre position actuelle,
-                        <Button variant="link" className="p-0 h-auto ml-1 mr-1" onClick={() => {setGpsRequestSource('origin'); setIsGpsDialogOpen(true);}}>
+                        <Button variant="link" className="p-0 h-auto ml-1 mr-1" onClick={() => {setGpsRequestSource('initial'); setIsGpsDialogOpen(true);}}>
                             activez le GPS
                         </Button>
                          via la boîte de dialogue. Sinon, définissez les points manuellement.
@@ -1083,7 +1154,15 @@ const MealDeliveryPage = () => {
             </div>
           )}
 
-            <AlertDialog open={isGpsDialogOpen} onOpenChange={setIsGpsDialogOpen}>
+            <AlertDialog open={isGpsDialogOpen} onOpenChange={(open) => {
+                 if (!open) { // If dialog is being closed
+                    // If it was closed without a choice (e.g. Escape key), treat as "No" for initial dialog
+                    if (gpsRequestSource === 'initial' && hasGpsPermission === null) {
+                         handleGpsPermissionResponse(false);
+                    }
+                 }
+                 setIsGpsDialogOpen(open);
+            }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Activation de la Géolocalisation</AlertDialogTitle>
@@ -1093,10 +1172,10 @@ const MealDeliveryPage = () => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => handleGpsPermissionResponse(false, gpsRequestSource)}>
+                        <AlertDialogCancel onClick={() => handleGpsPermissionResponse(false)}>
                             Non, spécifier manuellement
                         </AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleGpsPermissionResponse(true, gpsRequestSource)}>
+                        <AlertDialogAction onClick={() => handleGpsPermissionResponse(true)}>
                             Oui, Activer GPS
                         </AlertDialogAction>
                     </AlertDialogFooter>
