@@ -187,6 +187,7 @@ const MealDeliveryPage = () => {
   const [destination, setDestination] = useState('');
   const [hasGpsPermission, setHasGpsPermission] = useState<boolean | null>(null); // null = unknown, true = granted, false = denied/unavailable
   const [isGpsDialogOpen, setIsGpsDialogOpen] = useState(false); // Initially false, shown on first GPS attempt or if needed
+  const [gpsRequestSource, setGpsRequestSource] = useState<'origin' | 'destination'>('origin'); // To track which field initiated GPS
   const mapRef = useRef<L.Map | null>(null);
   const originInputRef = useRef<HTMLInputElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
@@ -325,7 +326,7 @@ const MealDeliveryPage = () => {
 
      // Use Nominatim's returned lat/lng if available, otherwise the clicked lat/lng
      const finalLatLng = geocodeResult ? new L.LatLng(geocodeResult.lat, geocodeResult.lng) : latLng;
-     const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)}`;
+     const address = geocodeResult ? geocodeResult.displayName : `Coordonnées: ${latLng.lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
      // Update toast with geocoding result
       geocodeToast.update({
@@ -461,7 +462,7 @@ const MealDeliveryPage = () => {
     }, [isGpsDialogOpen]); // isGpsDialogOpen is a dependency to prevent re-opening if already open
 
     // Handles user response from the GPS permission dialog
-    const handleGpsPermissionResponse = useCallback(async (granted: boolean, fieldTypeToSet: 'origin' | 'destination' = 'origin') => {
+    const handleGpsPermissionResponse = useCallback(async (granted: boolean, fieldTypeToSet: 'origin' | 'destination') => {
         setIsGpsDialogOpen(false); // Close dialog regardless of choice
         if (granted) {
             // No need to setHasGpsPermission here if it's set by getCurrentLocationAndSetField
@@ -581,6 +582,9 @@ const MealDeliveryPage = () => {
         }
 
         // Initial check for GPS permission - show dialog if needed
+        // Set the initial source for the GPS dialog correctly here,
+        // though it might be 'origin' by default if no specific action triggered it yet.
+        setGpsRequestSource('origin'); // Default or based on an initial action if any
         checkGpsPermission(true);
         console.log("Initial GPS permission check (with prompt if needed) performed.");
 
@@ -636,7 +640,8 @@ const MealDeliveryPage = () => {
     };
     // Return the cleanup function to be called on component unmount
     return cleanup;
-  }, [toast]); // Minimized dependencies for initialization effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]); // Minimized dependencies for initialization effect handleMapClick is stable due to useCallback
 
 
    const resetMapStateForNewField = (fieldType: 'origin' | 'destination') => {
@@ -817,6 +822,8 @@ const MealDeliveryPage = () => {
   const handleUseLocationIconClick = async (fieldType: 'origin' | 'destination') => {
       console.log(`'Use Current Location' icon clicked for ${fieldType}.`);
       setClickMode('none'); // Always deactivate map click mode first
+      setGpsRequestSource(fieldType); // Set the source field for the GPS dialog
+
       if (!mapRef.current || !LRefGlobal) {
         console.warn("Cannot use current location: Map not ready.");
         toast({variant: "destructive", title: "Carte Non Prête", description: "La carte n'est pas encore initialisée."});
@@ -1129,7 +1136,7 @@ const MealDeliveryPage = () => {
                   <AlertTitle>Accès GPS Non Accordé ou Indisponible</AlertTitle>
                   <AlertDescription>
                      L'accès à votre position est désactivé ou non disponible. Vous pouvez
-                     <Button variant="link" className="p-0 h-auto ml-1 text-destructive underline" onClick={() => setIsGpsDialogOpen(true)}>
+                     <Button variant="link" className="p-0 h-auto ml-1 text-destructive underline" onClick={() => { setGpsRequestSource('origin'); setIsGpsDialogOpen(true);}}>
                         réessayer d'activer le GPS
                     </Button>
                      , ou définir vos points manuellement.
@@ -1143,7 +1150,7 @@ const MealDeliveryPage = () => {
                      <AlertTitle>Autorisation GPS en Attente</AlertTitle>
                      <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center">
                         Pour utiliser votre position actuelle,
-                        <Button variant="link" className="p-0 h-auto ml-1 mr-1" onClick={() => setIsGpsDialogOpen(true)}>
+                        <Button variant="link" className="p-0 h-auto ml-1 mr-1" onClick={() => {setGpsRequestSource('origin'); setIsGpsDialogOpen(true);}}>
                             activez le GPS
                         </Button>
                          via la boîte de dialogue. Sinon, définissez les points manuellement.
@@ -1186,10 +1193,10 @@ const MealDeliveryPage = () => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => handleGpsPermissionResponse(false, 'origin')}> {/* Default to origin if type not specified */}
+                        <AlertDialogCancel onClick={() => handleGpsPermissionResponse(false, gpsRequestSource)}>
                             Non, spécifier manuellement
                         </AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleGpsPermissionResponse(true, 'origin')}> {/* Default to origin */}
+                        <AlertDialogAction onClick={() => handleGpsPermissionResponse(true, gpsRequestSource)}>
                             Oui, Activer GPS
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -1202,4 +1209,3 @@ const MealDeliveryPage = () => {
 };
 
 export default MealDeliveryPage;
-
